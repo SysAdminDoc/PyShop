@@ -29,6 +29,15 @@ Dependencies auto-install on first run.
 - Python 3.8+
 - PyQt6 (auto-installed)
 
+## Related Tools
+
+| Tool | Type | Best For |
+|------|------|----------|
+| **PyShop** (this repo) | Python desktop app | Native desktop image editor with familiar app behavior |
+| [Openshop](https://github.com/SysAdminDoc/Openshop) | Single-file browser app | Zero-install editing in any browser — 33 tools, PSD import, client-side AI, works offline |
+
+If you want an image editor with no Python install required, see [Openshop](https://github.com/SysAdminDoc/Openshop) — a single HTML file that runs entirely in your browser.
+
 ## License
 
 MIT License
