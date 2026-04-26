@@ -10,6 +10,26 @@ import math
 import numpy as np
 from collections import deque
 from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageFont, ImageOps, ImageChops
+from pathlib import Path
+
+
+# codex-branding:start
+def _branding_icon_path() -> Path:
+    candidates = []
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir / "icon.png")
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            candidates.append(Path(meipass) / "icon.png")
+    current = Path(__file__).resolve()
+    candidates.extend([current.parent / "icon.png", current.parent.parent / "icon.png", current.parent.parent.parent / "icon.png"])
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return Path("icon.png")
+# codex-branding:end
+
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -24,7 +44,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import (
     Qt, QPoint, QRect, QSize, QTimer, pyqtSignal, QPointF, QRectF
 )
-from PyQt5.QtGui import (
+from PyQt5.QtGui import (, QIcon
     QImage, QPixmap, QPainter, QPen, QBrush, QColor, QIcon,
     QCursor, QFont, QKeySequence, QPainterPath, QTransform,
     qRgba, qRed, qGreen, qBlue, qAlpha, QPolygon, QFontMetrics,
@@ -1564,6 +1584,8 @@ class ImageEditor(QMainWindow):
 # ---- Main -----------------------------------------------------------------
 def main():
     app = QApplication(sys.argv)
+    branding_icon = QIcon(str(_branding_icon_path()))
+    app.setWindowIcon(branding_icon)
     app.setStyle("Fusion")
     app.setStyleSheet(DARK_STYLE)
     editor = ImageEditor()
