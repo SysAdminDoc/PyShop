@@ -37,7 +37,9 @@ Dependencies auto-install on first run.
 ## Requirements
 
 - Python 3.8+
-- PyQt6 (auto-installed)
+- PyQt5
+- Pillow
+- numpy
 
 ## Related Tools
 
@@ -47,6 +49,13 @@ Dependencies auto-install on first run.
 | [Openshop](https://github.com/SysAdminDoc/Openshop) | Single-file browser app | Zero-install editing in any browser — 33 tools, PSD import, client-side AI, works offline |
 
 If you want an image editor with no Python install required, see [Openshop](https://github.com/SysAdminDoc/Openshop) — a single HTML file that runs entirely in your browser.
+
+## Project Planning
+
+- [Roadmap](ROADMAP.md)
+- [Completed work](COMPLETED.md)
+- [Research report](RESEARCH_REPORT.md)
+- [Archived detailed roadmap](docs/archive/roadmap/PYSHOP_ROADMAP.md)
 
 ## License
 
