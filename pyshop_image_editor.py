@@ -27,6 +27,7 @@ from pyshop.core import (
     paint_brush_line,
     qcolor_to_rgba,
     selection_mask_bounds,
+    TiledCompositeCache,
 )
 from pyshop.tools import DEFAULT_TOOL_REGISTRY
 
@@ -286,6 +287,7 @@ class CanvasWidget(QWidget):
         self.crop_rect = None
         self._lasso_points = []
         self._checker_tile = None
+        self.tile_cache = TiledCompositeCache()
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
@@ -338,6 +340,10 @@ class CanvasWidget(QWidget):
             tp.end()
         return self._checker_tile
 
+    def update(self, *args, **kwargs):
+        self.tile_cache.invalidate()
+        return super().update(*args, **kwargs)
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
@@ -350,10 +356,7 @@ class CanvasWidget(QWidget):
             painter.end()
             return
 
-        composite = self.editor.get_composite()
-        if composite is None:
-            painter.end()
-            return
+        doc_width, doc_height = self.editor.layers[0].image.size
 
         painter.save()
         painter.translate(self.pan_offset)
@@ -362,14 +365,14 @@ class CanvasWidget(QWidget):
         # Checkerboard
         tile = self._get_checker()
         tw, th = tile.width(), tile.height()
-        for y in range(0, composite.height, th):
-            for x in range(0, composite.width, tw):
-                dw = min(tw, composite.width - x)
-                dh = min(th, composite.height - y)
+        for y in range(0, doc_height, th):
+            for x in range(0, doc_width, tw):
+                dw = min(tw, doc_width - x)
+                dh = min(th, doc_height - y)
                 painter.drawPixmap(x, y, dw, dh, tile, 0, 0, dw, dh)
 
-        for box in iter_tile_boxes(composite.width, composite.height):
-            tile_image = composite.crop(box.as_crop_box())
+        for box in iter_tile_boxes(doc_width, doc_height):
+            tile_image = self.tile_cache.get_tile(self.editor.layers, box)
             tile_data = tile_image.tobytes("raw", "RGBA")
             qimg = QImage(tile_data, box.width, box.height, QImage.Format_RGBA8888)
             painter.drawImage(box.x, box.y, qimg)
@@ -411,7 +414,7 @@ class CanvasWidget(QWidget):
             painter.setPen(pen_c); painter.setBrush(Qt.NoBrush)
             painter.drawRect(self.crop_rect)
             ov = QPainterPath()
-            ov.addRect(QRectF(0, 0, composite.width, composite.height))
+            ov.addRect(QRectF(0, 0, doc_width, doc_height))
             inn = QPainterPath(); inn.addRect(self.crop_rect)
             painter.fillPath(ov.subtracted(inn), QColor(0, 0, 0, 120))
 
