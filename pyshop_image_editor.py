@@ -10,28 +10,8 @@ import math
 import numpy as np
 from collections import deque
 from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageFont, ImageOps, ImageChops
-from pathlib import Path
-
-APP_NAME = "PyShop"
-APP_VERSION = "0.1.0"
-APP_DISPLAY_NAME = f"{APP_NAME} v{APP_VERSION}"
-__version__ = APP_VERSION
-
-
-def _app_icon_path() -> Path:
-    candidates = []
-    if getattr(sys, "frozen", False):
-        exe_dir = Path(sys.executable).resolve().parent
-        candidates.append(exe_dir / "icon.png")
-        meipass = getattr(sys, "_MEIPASS", None)
-        if meipass:
-            candidates.append(Path(meipass) / "icon.png")
-    current = Path(__file__).resolve()
-    candidates.extend([current.parent / "icon.png", current.parent.parent / "icon.png", current.parent.parent.parent / "icon.png"])
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return Path("icon.png")
+from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
+from pyshop.app_info import app_icon_path
 
 
 from PyQt5.QtWidgets import (
@@ -1587,7 +1567,7 @@ class ImageEditor(QMainWindow):
 # ---- Main -----------------------------------------------------------------
 def main():
     app = QApplication(sys.argv)
-    app_icon = QIcon(str(_app_icon_path()))
+    app_icon = QIcon(str(app_icon_path()))
     app.setWindowIcon(app_icon)
     app.setStyle("Fusion")
     app.setStyleSheet(DARK_STYLE)
