@@ -1,7 +1,18 @@
 import numpy as np
 from PIL import Image
 
-from pyshop.core import HistoryManager, Layer, blend_layers, build_marching_ants_path
+from pyshop.core import (
+    HistoryManager,
+    Layer,
+    blend_layers,
+    build_marching_ants_path,
+    create_document_layers,
+    erase_brush_dab,
+    named_background_rgba,
+    paint_brush_dab,
+    paint_brush_line,
+    selection_mask_bounds,
+)
 
 
 def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
@@ -52,3 +63,31 @@ def test_selection_path_is_none_for_empty_mask_and_present_for_selection():
 
     assert build_marching_ants_path(empty) is None
     assert not build_marching_ants_path(selected).isEmpty()
+
+
+def test_document_factory_creates_background_layer():
+    layers = create_document_layers(2, 1, named_background_rgba("Black"))
+
+    assert len(layers) == 1
+    assert layers[0].name == "Background"
+    assert layers[0].image.getpixel((0, 0)) == (0, 0, 0, 255)
+
+
+def test_brush_helpers_paint_and_erase_pixels():
+    image = Image.new("RGBA", (5, 5), (0, 0, 0, 0))
+
+    paint_brush_line(image, 0, 0, 4, 4, 3, (255, 0, 0, 255))
+    paint_brush_dab(image, 2, 2, 1, (255, 0, 0, 255))
+    assert image.getpixel((2, 2))[3] == 255
+
+    erase_brush_dab(image, 2, 2, 1)
+    assert image.getpixel((2, 2))[3] == 0
+
+
+def test_selection_mask_bounds_returns_cropped_extent():
+    mask = Image.new("L", (5, 5), 0)
+    mask.putpixel((1, 2), 255)
+    mask.putpixel((3, 4), 255)
+
+    assert selection_mask_bounds(mask) == (1, 2, 4, 5)
+    assert selection_mask_bounds(Image.new("L", (2, 2), 0)) is None

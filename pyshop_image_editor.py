@@ -11,7 +11,22 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageFont, ImageOps, ImageChops
 from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
 from pyshop.app_info import app_icon_path
-from pyshop.core import HistoryManager, Layer, blend_layers, build_marching_ants_path
+from pyshop.core import (
+    HistoryManager,
+    Layer,
+    blend_layers,
+    build_marching_ants_path,
+    create_document_layers,
+    erase_brush_dab,
+    erase_brush_line,
+    flattened_document_layers,
+    image_document_layers,
+    named_background_rgba,
+    paint_brush_dab,
+    paint_brush_line,
+    qcolor_to_rgba,
+    selection_mask_bounds,
+)
 
 
 from PyQt5.QtWidgets import (
@@ -551,41 +566,26 @@ class CanvasWidget(QWidget):
     def _draw_brush(self, x, y):
         layer = self.editor.active_layer()
         if not layer or layer.locked: return
-        draw = ImageDraw.Draw(layer.image)
-        sz = self.editor.brush_size; c = self.editor.fg_color
-        color = (c.red(), c.green(), c.blue(), self.editor.brush_opacity)
-        draw.ellipse((x-sz//2, y-sz//2, x+sz//2, y+sz//2), fill=color)
+        color = qcolor_to_rgba(self.editor.fg_color, self.editor.brush_opacity)
+        paint_brush_dab(layer.image, x, y, self.editor.brush_size, color)
 
     def _draw_brush_line(self, p1, p2):
         layer = self.editor.active_layer()
         if not layer or layer.locked: return
-        draw = ImageDraw.Draw(layer.image)
-        sz = self.editor.brush_size; c = self.editor.fg_color
-        color = (c.red(), c.green(), c.blue(), self.editor.brush_opacity)
+        color = qcolor_to_rgba(self.editor.fg_color, self.editor.brush_opacity)
         x1, y1, x2, y2 = int(p1.x()), int(p1.y()), int(p2.x()), int(p2.y())
-        dist = max(1, int(math.hypot(x2-x1, y2-y1)))
-        for i in range(dist + 1):
-            t = i / dist
-            x, y = int(x1+(x2-x1)*t), int(y1+(y2-y1)*t)
-            draw.ellipse((x-sz//2, y-sz//2, x+sz//2, y+sz//2), fill=color)
+        paint_brush_line(layer.image, x1, y1, x2, y2, self.editor.brush_size, color)
 
     def _draw_eraser(self, x, y):
         layer = self.editor.active_layer()
         if not layer or layer.locked: return
-        sz = self.editor.brush_size
-        ImageDraw.Draw(layer.image).ellipse((x-sz//2, y-sz//2, x+sz//2, y+sz//2), fill=(0,0,0,0))
+        erase_brush_dab(layer.image, x, y, self.editor.brush_size)
 
     def _draw_eraser_line(self, p1, p2):
         layer = self.editor.active_layer()
         if not layer or layer.locked: return
-        draw = ImageDraw.Draw(layer.image)
-        sz = self.editor.brush_size
         x1, y1, x2, y2 = int(p1.x()), int(p1.y()), int(p2.x()), int(p2.y())
-        dist = max(1, int(math.hypot(x2-x1, y2-y1)))
-        for i in range(dist + 1):
-            t = i / dist
-            x, y = int(x1+(x2-x1)*t), int(y1+(y2-y1)*t)
-            draw.ellipse((x-sz//2, y-sz//2, x+sz//2, y+sz//2), fill=(0,0,0,0))
+        erase_brush_line(layer.image, x1, y1, x2, y2, self.editor.brush_size)
 
     def _flood_fill(self, x, y):
         layer = self.editor.active_layer()
@@ -594,8 +594,7 @@ class CanvasWidget(QWidget):
         if x < 0 or x >= w or y < 0 or y >= h: return
         pixels = layer.image.load()
         target = pixels[x, y]
-        c = self.editor.fg_color
-        fill_color = (c.red(), c.green(), c.blue(), self.editor.brush_opacity)
+        fill_color = qcolor_to_rgba(self.editor.fg_color, self.editor.brush_opacity)
         if target == fill_color: return
         tol = self.editor.magic_wand_tolerance
         def match(c1, c2): return all(abs(a-b) <= tol for a, b in zip(c1[:3], c2[:3]))
@@ -1047,9 +1046,7 @@ class ImageEditor(QMainWindow):
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject); form.addRow(btns)
         if dlg.exec_() == QDialog.Accepted:
             w, h = ws.value(), hs.value()
-            bgc = {"White":(255,255,255,255),"Black":(0,0,0,255),"Transparent":(0,0,0,0)}[bg.currentText()]
-            self.layers = [Layer("Background", w, h)]
-            self.layers[0].image = Image.new("RGBA", (w,h), bgc)
+            self.layers = create_document_layers(w, h, named_background_rgba(bg.currentText()))
             self.active_layer_index = 0; self.history = HistoryManager(); self.file_path = None
             self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
             self.setWindowTitle(f"{APP_DISPLAY_NAME} - Untitled")
@@ -1060,7 +1057,7 @@ class ImageEditor(QMainWindow):
         if path:
             try:
                 img = Image.open(path).convert("RGBA")
-                self.layers = [Layer("Background", image=img)]
+                self.layers = image_document_layers(img)
                 self.active_layer_index = 0; self.history = HistoryManager(); self.file_path = path
                 self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
                 self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
@@ -1189,7 +1186,7 @@ class ImageEditor(QMainWindow):
     def flatten_image(self):
         if not self.layers: return
         self.history.save_state(self.layers, self.active_layer_index)
-        self.layers = [Layer("Background", image=self.get_composite())]
+        self.layers = flattened_document_layers(self.get_composite())
         self.active_layer_index = 0; self.update_layer_panel(); self.canvas.update()
 
     def merge_down(self):
@@ -1210,9 +1207,8 @@ class ImageEditor(QMainWindow):
 
     def crop_to_selection(self):
         if self.canvas.selection_mask:
-            arr = np.array(self.canvas.selection_mask)
-            ys, xs = np.where(arr > 127)
-            if len(xs) > 0: self._do_crop(int(xs.min()), int(ys.min()), int(xs.max())+1, int(ys.max())+1)
+            bounds = selection_mask_bounds(self.canvas.selection_mask)
+            if bounds: self._do_crop(*bounds)
         elif self.canvas.selection_rect:
             r = self.canvas.selection_rect
             self._do_crop(int(r.x()), int(r.y()), int(r.x()+r.width()), int(r.y()+r.height()))
@@ -1250,7 +1246,7 @@ class ImageEditor(QMainWindow):
             except OSError:
                 try: font = ImageFont.truetype("arial.ttf", sz)
                 except OSError: font = ImageFont.load_default()
-            color = (self.fg_color.red(), self.fg_color.green(), self.fg_color.blue(), self.brush_opacity)
+            color = qcolor_to_rgba(self.fg_color, self.brush_opacity)
             draw.text((x, y), text, fill=color, font=font); self.canvas.update()
 
     # Adjustments
