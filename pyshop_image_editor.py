@@ -27,6 +27,7 @@ from pyshop.core import (
     qcolor_to_rgba,
     selection_mask_bounds,
 )
+from pyshop.tools import DEFAULT_TOOL_REGISTRY
 
 
 from PyQt5.QtWidgets import (
@@ -44,7 +45,7 @@ from PyQt5.QtCore import (
 )
 from PyQt5.QtGui import (
     QImage, QPixmap, QPainter, QPen, QBrush, QColor, QIcon,
-    QCursor, QFont, QKeySequence, QPainterPath, QTransform,
+    QCursor, QFont, QPainterPath, QTransform,
     qRgba, qRed, qGreen, qBlue, qAlpha, QPolygon, QFontMetrics,
     QLinearGradient, QRadialGradient, QPolygonF
 )
@@ -931,7 +932,6 @@ class ImageEditor(QMainWindow):
 
     def _act(self, menu, name, shortcut, cb):
         a = QAction(name, self)
-        if shortcut: a.setShortcut(QKeySequence(shortcut))
         a.triggered.connect(cb); menu.addAction(a); return a
 
     def create_toolbars(self):
@@ -941,20 +941,12 @@ class ImageEditor(QMainWindow):
         self.addToolBar(Qt.LeftToolBarArea, self.tool_bar)
 
         self.tool_group = QActionGroup(self)
-        tools = [
-            ("move","Move (V)","V"), ("brush","Brush (B)","B"), ("eraser","Eraser (E)","E"),
-            ("fill","Paint Bucket (G)","G"), ("eyedropper","Eyedropper (I)","I"),
-            ("magic_wand","Magic Wand (W)","W"), ("select_rect","Rect Select (M)","M"),
-            ("select_ellipse","Ellipse Select",""), ("lasso","Lasso (L)","L"),
-            ("crop","Crop (C)","C"), ("text","Text (T)","T"), ("clone_stamp","Clone Stamp (S)","S"),
-        ]
-        for tid, label, sc in tools:
-            icon = make_tool_icon(tid, 32)
-            a = QAction(icon, "", self); a.setToolTip(label); a.setCheckable(True); a.setData(tid)
-            if sc: a.setShortcut(QKeySequence(sc))
-            a.triggered.connect(lambda checked, t=tid: self.set_tool(t))
+        for tool in DEFAULT_TOOL_REGISTRY:
+            icon = make_tool_icon(tool.icon_id, 32)
+            a = QAction(icon, "", self); a.setToolTip(tool.label); a.setCheckable(True); a.setData(tool.tool_id)
+            a.triggered.connect(lambda checked, t=tool.tool_id: self.set_tool(t))
             self.tool_group.addAction(a); self.tool_bar.addAction(a)
-            if tid == "brush": a.setChecked(True)
+            if tool.tool_id == "brush": a.setChecked(True)
 
         self.tool_bar.addSeparator()
         self.fg_btn = QPushButton(); self.fg_btn.setFixedSize(32,32)
@@ -964,8 +956,8 @@ class ImageEditor(QMainWindow):
         self.bg_btn.setToolTip("Background Color"); self.bg_btn.clicked.connect(self.pick_bg_color)
         self.tool_bar.addWidget(self.bg_btn)
         self.update_color_buttons()
-        sb = QPushButton("Swap"); sb.setFixedWidth(36); sb.setToolTip("Swap Colors (X)")
-        sb.setShortcut(QKeySequence("X")); sb.clicked.connect(self.swap_colors)
+        sb = QPushButton("Swap"); sb.setFixedWidth(36); sb.setToolTip("Swap Colors")
+        sb.clicked.connect(self.swap_colors)
         self.tool_bar.addWidget(sb)
 
         self.options_bar = QToolBar("Tool Options"); self.options_bar.setMovable(False)
@@ -1416,15 +1408,6 @@ class ImageEditor(QMainWindow):
     # Zoom
     def _zoom(self, f): self.canvas.zoom *= f; self.canvas.update()
     def _set_zoom(self, v): self.canvas.zoom = v; self.canvas.update()
-
-    def keyPressEvent(self, e):
-        if e.key() == Qt.Key_Space: self.canvas.setCursor(Qt.OpenHandCursor)
-        super().keyPressEvent(e)
-
-    def keyReleaseEvent(self, e):
-        if e.key() == Qt.Key_Space: self.canvas.setCursor(Qt.ArrowCursor)
-        super().keyReleaseEvent(e)
-
 
 # ---- Main -----------------------------------------------------------------
 def main():
