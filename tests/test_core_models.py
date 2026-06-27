@@ -3,6 +3,7 @@ from PIL import Image
 
 from pyshop.core import (
     HistoryManager,
+    HistoryCommand,
     Layer,
     blend_layers,
     build_marching_ants_path,
@@ -44,6 +45,20 @@ def test_history_snapshots_preserve_layer_name_without_duplicate_suffix():
     assert restored_index == 0
     assert restored_layers[0].name == "Background"
     assert restored_layers[0].image.getpixel((0, 0)) == (1, 2, 3, 255)
+
+
+def test_history_uses_bounded_command_objects():
+    first = Layer("First", image=Image.new("RGBA", (1, 1), (1, 1, 1, 255)))
+    second = Layer("Second", image=Image.new("RGBA", (1, 1), (2, 2, 2, 255)))
+    history = HistoryManager(max_states=1)
+
+    history.save_state([first], 0)
+    history.save_state([second], 0)
+
+    assert len(history.undo_stack) == 1
+    assert isinstance(history.undo_stack[0], HistoryCommand)
+    restored_layers, _ = history.undo([second], 0)
+    assert restored_layers[0].name == "Second"
 
 
 def test_blend_layers_normal_does_not_mutate_base_image():

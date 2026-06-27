@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.5 - 2026-06-27
+
+- Replaced raw history tuple stacks with explicit bounded `HistoryCommand` objects while preserving undo/redo behavior.
+
 ## PyShop v0.1.4 - 2026-06-27
 
 - Added a `pyshop.tools` registry for toolbar metadata, options grouping, cursor metadata, and input-handler routing.
