@@ -21,6 +21,7 @@ from pyshop.core import (
     erase_brush_line,
     flattened_document_layers,
     image_document_layers,
+    iter_tile_boxes,
     named_background_rgba,
     paint_brush_dab,
     paint_brush_line,
@@ -354,9 +355,6 @@ class CanvasWidget(QWidget):
             painter.end()
             return
 
-        data = composite.tobytes("raw", "RGBA")
-        qimg = QImage(data, composite.width, composite.height, QImage.Format_RGBA8888)
-
         painter.save()
         painter.translate(self.pan_offset)
         painter.scale(self.zoom, self.zoom)
@@ -370,7 +368,11 @@ class CanvasWidget(QWidget):
                 dh = min(th, composite.height - y)
                 painter.drawPixmap(x, y, dw, dh, tile, 0, 0, dw, dh)
 
-        painter.drawImage(0, 0, qimg)
+        for box in iter_tile_boxes(composite.width, composite.height):
+            tile_image = composite.crop(box.as_crop_box())
+            tile_data = tile_image.tobytes("raw", "RGBA")
+            qimg = QImage(tile_data, box.width, box.height, QImage.Format_RGBA8888)
+            painter.drawImage(box.x, box.y, qimg)
 
         # ---- Marching Ants ----
         if self.marching_ants_path is not None:

@@ -10,6 +10,7 @@ from pyshop.core import (
     build_marching_ants_path,
     create_document_layers,
     erase_brush_dab,
+    iter_tile_boxes,
     named_background_rgba,
     paint_brush_dab,
     paint_brush_line,
@@ -124,3 +125,11 @@ def test_selection_mask_bounds_returns_cropped_extent():
 
     assert selection_mask_bounds(mask) == (1, 2, 4, 5)
     assert selection_mask_bounds(Image.new("L", (2, 2), 0)) is None
+
+
+def test_iter_tile_boxes_covers_partial_edges():
+    boxes = list(iter_tile_boxes(5, 3, tile_size=2))
+
+    assert boxes[0].as_crop_box() == (0, 0, 2, 2)
+    assert boxes[-1].as_crop_box() == (4, 2, 5, 3)
+    assert sum(box.width * box.height for box in boxes) == 15
