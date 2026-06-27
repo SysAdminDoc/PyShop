@@ -767,16 +767,16 @@ class LayerPanel(QWidget):
         if row < 0: return
         item = self.layer_list.item(row)
         if item:
-            self.editor.active_layer_index = item.data(Qt.UserRole)
-            self.refresh(); self.editor.canvas.update()
+            self.editor.set_active_layer_index(item.data(Qt.UserRole))
+            self.editor.canvas.update()
 
     def on_layers_reordered(self):
         new = []
         for i in range(self.layer_list.count()):
             new.append(self.editor.layers[self.layer_list.item(i).data(Qt.UserRole)])
         new.reverse(); self.editor.layers = new
-        self.editor.active_layer_index = max(0, min(self.editor.active_layer_index, len(self.editor.layers)-1))
-        self.refresh(); self.editor.canvas.update()
+        self.editor.set_active_layer_index(self.editor.active_layer_index)
+        self.editor.notify_layers_changed(); self.editor.canvas.update()
 
     def on_opacity_change(self, v):
         layer = self.editor.active_layer()
@@ -788,11 +788,11 @@ class LayerPanel(QWidget):
 
     def on_visibility_toggle(self, checked):
         layer = self.editor.active_layer()
-        if layer: layer.visible = checked; self.refresh(); self.editor.canvas.update()
+        if layer: layer.visible = checked; self.editor.notify_layers_changed(); self.editor.canvas.update()
 
     def on_lock_toggle(self, checked):
         layer = self.editor.active_layer()
-        if layer: layer.locked = checked; self.refresh()
+        if layer: layer.locked = checked; self.editor.notify_layers_changed()
 
     def add_layer(self):
         if not self.editor.layers: return
@@ -801,38 +801,42 @@ class LayerPanel(QWidget):
         name, ok = QInputDialog.getText(self, "New Layer", "Layer name:", text=f"Layer {len(self.editor.layers)+1}")
         if ok and name:
             self.editor.layers.append(Layer(name, w, h))
-            self.editor.active_layer_index = len(self.editor.layers) - 1
-            self.refresh(); self.editor.canvas.update()
+            self.editor.set_active_layer_index(len(self.editor.layers) - 1)
+            self.editor.notify_layers_changed(); self.editor.canvas.update()
 
     def remove_layer(self):
         if len(self.editor.layers) <= 1: return
         self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
         del self.editor.layers[self.editor.active_layer_index]
-        self.editor.active_layer_index = max(0, self.editor.active_layer_index - 1)
-        self.refresh(); self.editor.canvas.update()
+        self.editor.set_active_layer_index(max(0, self.editor.active_layer_index - 1))
+        self.editor.notify_layers_changed(); self.editor.canvas.update()
 
     def duplicate_layer(self):
         layer = self.editor.active_layer()
         if layer:
             self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
             self.editor.layers.insert(self.editor.active_layer_index + 1, layer.copy())
-            self.editor.active_layer_index += 1; self.refresh(); self.editor.canvas.update()
+            self.editor.set_active_layer_index(self.editor.active_layer_index + 1)
+            self.editor.notify_layers_changed(); self.editor.canvas.update()
 
     def move_up(self):
         idx = self.editor.active_layer_index
         if idx < len(self.editor.layers) - 1:
             self.editor.layers[idx], self.editor.layers[idx+1] = self.editor.layers[idx+1], self.editor.layers[idx]
-            self.editor.active_layer_index = idx + 1; self.refresh(); self.editor.canvas.update()
+            self.editor.set_active_layer_index(idx + 1); self.editor.notify_layers_changed(); self.editor.canvas.update()
 
     def move_down(self):
         idx = self.editor.active_layer_index
         if idx > 0:
             self.editor.layers[idx], self.editor.layers[idx-1] = self.editor.layers[idx-1], self.editor.layers[idx]
-            self.editor.active_layer_index = idx - 1; self.refresh(); self.editor.canvas.update()
+            self.editor.set_active_layer_index(idx - 1); self.editor.notify_layers_changed(); self.editor.canvas.update()
 
 
 # ---- Main Editor -----------------------------------------------------------
 class ImageEditor(QMainWindow):
+    layers_changed = pyqtSignal()
+    active_layer_changed = pyqtSignal(int)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_DISPLAY_NAME} - Image Editor")
@@ -985,6 +989,8 @@ class ImageEditor(QMainWindow):
 
     def create_panels(self):
         self.layer_panel = LayerPanel(self)
+        self.layers_changed.connect(self.layer_panel.refresh)
+        self.active_layer_changed.connect(lambda _index: self.layer_panel.refresh())
         ld = QDockWidget("Layers", self); ld.setWidget(self.layer_panel); ld.setMinimumWidth(220)
         self.addDockWidget(Qt.RightDockWidgetArea, ld)
         self.history_list = QListWidget()
@@ -1011,7 +1017,17 @@ class ImageEditor(QMainWindow):
     def swap_colors(self):
         self.fg_color, self.bg_color = self.bg_color, self.fg_color; self.update_color_buttons()
 
-    def update_layer_panel(self): self.layer_panel.refresh()
+    def set_active_layer_index(self, index):
+        if not self.layers:
+            self.active_layer_index = 0
+        else:
+            self.active_layer_index = max(0, min(index, len(self.layers)-1))
+        self.active_layer_changed.emit(self.active_layer_index)
+
+    def notify_layers_changed(self):
+        self.layers_changed.emit()
+
+    def update_layer_panel(self): self.notify_layers_changed()
 
     # Compositing
     def get_composite(self):
@@ -1039,7 +1055,7 @@ class ImageEditor(QMainWindow):
         if dlg.exec_() == QDialog.Accepted:
             w, h = ws.value(), hs.value()
             self.layers = create_document_layers(w, h, named_background_rgba(bg.currentText()))
-            self.active_layer_index = 0; self.history = HistoryManager(); self.file_path = None
+            self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
             self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
             self.setWindowTitle(f"{APP_DISPLAY_NAME} - Untitled")
 
@@ -1050,7 +1066,7 @@ class ImageEditor(QMainWindow):
             try:
                 img = Image.open(path).convert("RGBA")
                 self.layers = image_document_layers(img)
-                self.active_layer_index = 0; self.history = HistoryManager(); self.file_path = path
+                self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = path
                 self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
                 self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
             except Exception as e:
@@ -1085,11 +1101,11 @@ class ImageEditor(QMainWindow):
     # Edit ops
     def undo(self):
         s, i = self.history.undo(self.layers, self.active_layer_index)
-        if s: self.layers = s; self.active_layer_index = i; self.update_layer_panel(); self.canvas.update()
+        if s: self.layers = s; self.set_active_layer_index(i); self.update_layer_panel(); self.canvas.update()
 
     def redo(self):
         s, i = self.history.redo(self.layers, self.active_layer_index)
-        if s: self.layers = s; self.active_layer_index = i; self.update_layer_panel(); self.canvas.update()
+        if s: self.layers = s; self.set_active_layer_index(i); self.update_layer_panel(); self.canvas.update()
 
     def select_all(self):
         l = self.active_layer()
@@ -1125,7 +1141,7 @@ class ImageEditor(QMainWindow):
         if hasattr(self, '_clipboard') and self._clipboard:
             self.history.save_state(self.layers, self.active_layer_index)
             nl = Layer("Pasted Layer"); nl.image = self._clipboard.copy()
-            self.layers.append(nl); self.active_layer_index = len(self.layers)-1
+            self.layers.append(nl); self.set_active_layer_index(len(self.layers)-1)
             self.update_layer_panel(); self.canvas.update()
 
     # Image ops
@@ -1179,7 +1195,7 @@ class ImageEditor(QMainWindow):
         if not self.layers: return
         self.history.save_state(self.layers, self.active_layer_index)
         self.layers = flattened_document_layers(self.get_composite())
-        self.active_layer_index = 0; self.update_layer_panel(); self.canvas.update()
+        self.set_active_layer_index(0); self.update_layer_panel(); self.canvas.update()
 
     def merge_down(self):
         idx = self.active_layer_index
@@ -1194,7 +1210,7 @@ class ImageEditor(QMainWindow):
                 img = Image.merge("RGBA",(r,g,b,a))
             result = blend_layers(result, img, top.blend_mode)
         bot.image = result; bot.name = f"{bot.name} + {top.name}"
-        del self.layers[idx]; self.active_layer_index = idx-1
+        del self.layers[idx]; self.set_active_layer_index(idx-1)
         self.update_layer_panel(); self.canvas.update()
 
     def crop_to_selection(self):
