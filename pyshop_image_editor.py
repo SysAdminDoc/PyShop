@@ -12,9 +12,13 @@ from collections import deque
 from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageFont, ImageOps, ImageChops
 from pathlib import Path
 
+APP_NAME = "PyShop"
+APP_VERSION = "0.1.0"
+APP_DISPLAY_NAME = f"{APP_NAME} v{APP_VERSION}"
+__version__ = APP_VERSION
 
-# codex-branding:start
-def _branding_icon_path() -> Path:
+
+def _app_icon_path() -> Path:
     candidates = []
     if getattr(sys, "frozen", False):
         exe_dir = Path(sys.executable).resolve().parent
@@ -28,7 +32,6 @@ def _branding_icon_path() -> Path:
         if candidate.exists():
             return candidate
     return Path("icon.png")
-# codex-branding:end
 
 
 from PyQt5.QtWidgets import (
@@ -44,7 +47,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import (
     Qt, QPoint, QRect, QSize, QTimer, pyqtSignal, QPointF, QRectF
 )
-from PyQt5.QtGui import (, QIcon
+from PyQt5.QtGui import (
     QImage, QPixmap, QPainter, QPen, QBrush, QColor, QIcon,
     QCursor, QFont, QKeySequence, QPainterPath, QTransform,
     qRgba, qRed, qGreen, qBlue, qAlpha, QPolygon, QFontMetrics,
@@ -959,7 +962,7 @@ class LayerPanel(QWidget):
 class ImageEditor(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PyShop - Image Editor")
+        self.setWindowTitle(f"{APP_DISPLAY_NAME} - Image Editor")
         self.setMinimumSize(1200, 800)
         self.layers = []; self.active_layer_index = 0
         self.current_tool = "brush"
@@ -1203,7 +1206,7 @@ class ImageEditor(QMainWindow):
             self.layers[0].image = Image.new("RGBA", (w,h), bgc)
             self.active_layer_index = 0; self.history = HistoryManager(); self.file_path = None
             self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
-            self.setWindowTitle("PyShop - Untitled")
+            self.setWindowTitle(f"{APP_DISPLAY_NAME} - Untitled")
 
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Image", "",
@@ -1214,7 +1217,7 @@ class ImageEditor(QMainWindow):
                 self.layers = [Layer("Background", image=img)]
                 self.active_layer_index = 0; self.history = HistoryManager(); self.file_path = path
                 self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
-                self.setWindowTitle(f"PyShop - {os.path.basename(path)}")
+                self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to open image:\n{e}")
 
@@ -1227,7 +1230,7 @@ class ImageEditor(QMainWindow):
             "PNG (*.png);;JPEG (*.jpg);;BMP (*.bmp);;All Files (*)")
         if path:
             self.file_path = path; self._save_to(path)
-            self.setWindowTitle(f"PyShop - {os.path.basename(path)}")
+            self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
 
     def _save_to(self, path):
         try:
@@ -1584,8 +1587,8 @@ class ImageEditor(QMainWindow):
 # ---- Main -----------------------------------------------------------------
 def main():
     app = QApplication(sys.argv)
-    branding_icon = QIcon(str(_branding_icon_path()))
-    app.setWindowIcon(branding_icon)
+    app_icon = QIcon(str(_app_icon_path()))
+    app.setWindowIcon(app_icon)
     app.setStyle("Fusion")
     app.setStyleSheet(DARK_STYLE)
     editor = ImageEditor()
