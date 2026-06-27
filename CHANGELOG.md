@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.6 - 2026-06-27
+
+- Added diff-backed history commands for same-structure layer edits, with snapshot fallback for structural changes.
+
 ## PyShop v0.1.5 - 2026-06-27
 
 - Replaced raw history tuple stacks with explicit bounded `HistoryCommand` objects while preserving undo/redo behavior.
