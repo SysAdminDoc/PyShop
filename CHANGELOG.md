@@ -1,5 +1,10 @@
 # Changelog
 
+## PyShop v0.1.2 - 2026-06-27
+
+- Extracted layer state, bounded history, selection contour generation, and blend-mode compositing into `pyshop.core`.
+- Added focused core tests for layer copies, history snapshots, blend immutability, and selection path generation.
+
 ## PyShop v0.1.1 - 2026-06-27
 
 - Added the initial `pyshop/` package skeleton with core, tools, panels, filters, ui, and resources namespaces.
