@@ -1,5 +1,11 @@
 # Changelog
 
+## PyShop v0.1.3 - 2026-06-27
+
+- Extracted document construction, color conversion, brush/eraser painting, and selection bounds helpers into `pyshop.core`.
+- Completed the first architecture extraction pass while preserving the current single-window UI entrypoint.
+- Fixed eraser strokes so transparent brush dabs clear existing alpha instead of leaving painted pixels intact.
+
 ## PyShop v0.1.2 - 2026-06-27
 
 - Extracted layer state, bounded history, selection contour generation, and blend-mode compositing into `pyshop.core`.
