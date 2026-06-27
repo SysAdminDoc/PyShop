@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.9 - 2026-06-27
+
+- Added tile-level layer compositing and a canvas tile cache for bounded paint operations.
+
 ## PyShop v0.1.8 - 2026-06-27
 
 - Added core tile geometry helpers and routed canvas composite painting through bounded image tiles.

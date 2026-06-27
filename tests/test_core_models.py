@@ -8,6 +8,7 @@ from pyshop.core import (
     Layer,
     blend_layers,
     build_marching_ants_path,
+    composite_layers_tile,
     create_document_layers,
     erase_brush_dab,
     iter_tile_boxes,
@@ -133,3 +134,14 @@ def test_iter_tile_boxes_covers_partial_edges():
     assert boxes[0].as_crop_box() == (0, 0, 2, 2)
     assert boxes[-1].as_crop_box() == (4, 2, 5, 3)
     assert sum(box.width * box.height for box in boxes) == 15
+
+
+def test_composite_layers_tile_blends_only_requested_tile():
+    bottom = Layer("Bottom", image=Image.new("RGBA", (4, 4), (0, 0, 255, 255)))
+    top = Layer("Top", image=Image.new("RGBA", (4, 4), (255, 0, 0, 128)))
+    tile_box = next(iter_tile_boxes(4, 4, tile_size=2))
+
+    tile = composite_layers_tile([bottom, top], tile_box)
+
+    assert tile.size == (2, 2)
+    assert tile.getpixel((0, 0))[0] > 0
