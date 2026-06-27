@@ -8,10 +8,10 @@ import sys
 import os
 import math
 import numpy as np
-from collections import deque
 from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageFont, ImageOps, ImageChops
 from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
 from pyshop.app_info import app_icon_path
+from pyshop.core import HistoryManager, Layer, blend_layers, build_marching_ants_path
 
 
 from PyQt5.QtWidgets import (
@@ -246,113 +246,6 @@ def make_tool_icon(tool_id, size=24):
 
     p.end()
     return QIcon(pix)
-
-
-# ---- Layer Class -----------------------------------------------------------
-class Layer:
-    BLEND_MODES = ["Normal", "Multiply", "Screen", "Overlay", "Darken",
-                   "Lighten", "Difference", "Color Dodge", "Color Burn"]
-    def __init__(self, name="Layer", width=800, height=600, image=None):
-        self.name = name
-        self.visible = True
-        self.opacity = 255
-        self.blend_mode = "Normal"
-        self.locked = False
-        self.image = image.convert("RGBA") if image is not None else Image.new("RGBA", (width, height), (0,0,0,0))
-
-    def copy(self):
-        layer = Layer(self.name + " copy")
-        layer.image = self.image.copy()
-        layer.visible = self.visible
-        layer.opacity = self.opacity
-        layer.blend_mode = self.blend_mode
-        layer.locked = self.locked
-        return layer
-
-
-# ---- History ---------------------------------------------------------------
-class HistoryManager:
-    def __init__(self, max_states=30):
-        self.undo_stack = deque(maxlen=max_states)
-        self.redo_stack = deque(maxlen=max_states)
-
-    def save_state(self, layers, active_index):
-        state = []
-        for l in layers:
-            s = Layer(l.name); s.image = l.image.copy(); s.visible = l.visible
-            s.opacity = l.opacity; s.blend_mode = l.blend_mode; s.locked = l.locked
-            state.append(s)
-        self.undo_stack.append((state, active_index))
-        self.redo_stack.clear()
-
-    def undo(self, current_layers, current_index):
-        if not self.undo_stack: return None, None
-        self.redo_stack.append(self._snap(current_layers, current_index))
-        return self.undo_stack.pop()
-
-    def redo(self, current_layers, current_index):
-        if not self.redo_stack: return None, None
-        self.undo_stack.append(self._snap(current_layers, current_index))
-        return self.redo_stack.pop()
-
-    def _snap(self, layers, idx):
-        state = []
-        for l in layers:
-            s = Layer(l.name); s.image = l.image.copy(); s.visible = l.visible
-            s.opacity = l.opacity; s.blend_mode = l.blend_mode; s.locked = l.locked
-            state.append(s)
-        return (state, idx)
-
-
-# ---- Marching Ants Contour Builder -----------------------------------------
-def build_marching_ants_path(mask_np):
-    """
-    Build a QPainterPath tracing pixel-level boundaries between selected
-    and unselected pixels using vectorized numpy operations for speed.
-    Produces real Photoshop-style marching ants along the actual selection edge.
-    """
-    h, w = mask_np.shape
-    if mask_np.max() == 0:
-        return None
-    binary = (mask_np > 127).astype(np.uint8)
-    path = QPainterPath()
-
-    # ---- Horizontal edges (between rows) ----
-    # Pad top/bottom with 0 so image borders are detected
-    padded_h = np.pad(binary, ((1, 1), (0, 0)), mode='constant', constant_values=0)
-    # diff_h[y, x] = True means there's a horizontal edge at pixel-grid row y
-    diff_h = padded_h[1:, :] != padded_h[:-1, :]  # shape (h+1, w)
-
-    for y in range(h + 1):
-        row = diff_h[y]
-        if not np.any(row):
-            continue
-        # Find runs: indices where diff starts (rising) and stops (falling)
-        padded_row = np.concatenate(([0], row.astype(np.uint8), [0]))
-        d = np.diff(padded_row)
-        starts = np.where(d == 1)[0]
-        ends = np.where(d == -1)[0]  # exclusive end (d==-1 means the run ended)
-        for s, e in zip(starts, ends):
-            path.moveTo(s, y)
-            path.lineTo(e, y)
-
-    # ---- Vertical edges (between columns) ----
-    padded_v = np.pad(binary, ((0, 0), (1, 1)), mode='constant', constant_values=0)
-    diff_v = padded_v[:, 1:] != padded_v[:, :-1]  # shape (h, w+1)
-
-    for x in range(w + 1):
-        col = diff_v[:, x]
-        if not np.any(col):
-            continue
-        padded_col = np.concatenate(([0], col.astype(np.uint8), [0]))
-        d = np.diff(padded_col)
-        starts = np.where(d == 1)[0]
-        ends = np.where(d == -1)[0]
-        for s, e in zip(starts, ends):
-            path.moveTo(x, s)
-            path.lineTo(x, e)
-
-    return path
 
 
 # ---- Canvas Widget ---------------------------------------------------------
@@ -1140,35 +1033,8 @@ class ImageEditor(QMainWindow):
                 r,g,b,a = img.split()
                 a = a.point(lambda x: int(x*layer.opacity/255))
                 img = Image.merge("RGBA", (r,g,b,a))
-            result = self._blend(result, img, layer.blend_mode)
+            result = blend_layers(result, img, layer.blend_mode)
         return result
-
-    def _blend(self, base, top, mode):
-        if mode == "Normal":
-            base.paste(top, (0,0), top); return base
-        elif mode == "Multiply": bl = ImageChops.multiply(base.convert("RGB"), top.convert("RGB"))
-        elif mode == "Screen": bl = ImageChops.screen(base.convert("RGB"), top.convert("RGB"))
-        elif mode == "Overlay":
-            b = np.array(base.convert("RGB"), dtype=np.float32)/255
-            t = np.array(top.convert("RGB"), dtype=np.float32)/255
-            m = b < 0.5; r = np.where(m, 2*b*t, 1-2*(1-b)*(1-t))
-            bl = Image.fromarray((r*255).clip(0,255).astype(np.uint8), "RGB")
-        elif mode == "Darken": bl = ImageChops.darker(base.convert("RGB"), top.convert("RGB"))
-        elif mode == "Lighten": bl = ImageChops.lighter(base.convert("RGB"), top.convert("RGB"))
-        elif mode == "Difference": bl = ImageChops.difference(base.convert("RGB"), top.convert("RGB"))
-        elif mode == "Color Dodge":
-            b = np.array(base.convert("RGB"), dtype=np.float32)
-            t = np.array(top.convert("RGB"), dtype=np.float32)
-            bl = Image.fromarray(np.where(t>=255, 255, np.clip(b*255/(256-t), 0, 255)).astype(np.uint8), "RGB")
-        elif mode == "Color Burn":
-            b = np.array(base.convert("RGB"), dtype=np.float32)
-            t = np.array(top.convert("RGB"), dtype=np.float32)
-            bl = Image.fromarray(np.where(t<=0, 0, np.clip(255-(255-b)*255/(t+1), 0, 255)).astype(np.uint8), "RGB")
-        else:
-            base.paste(top, (0,0), top); return base
-        _,_,_,ta = top.split()
-        result = base.copy(); bl_rgba = bl.convert("RGBA"); bl_rgba.putalpha(ta)
-        result.paste(bl_rgba, (0,0), bl_rgba); return result
 
     # File ops
     def new_image(self):
@@ -1337,7 +1203,7 @@ class ImageEditor(QMainWindow):
             if top.opacity < 255:
                 r,g,b,a = img.split(); a = a.point(lambda x: int(x*top.opacity/255))
                 img = Image.merge("RGBA",(r,g,b,a))
-            result = self._blend(result, img, top.blend_mode)
+            result = blend_layers(result, img, top.blend_mode)
         bot.image = result; bot.name = f"{bot.name} + {top.name}"
         del self.layers[idx]; self.active_layer_index = idx-1
         self.update_layer_panel(); self.canvas.update()
