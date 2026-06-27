@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 
 from pyshop.core import (
+    DiffHistoryCommand,
     HistoryManager,
     HistoryCommand,
     Layer,
@@ -59,6 +60,23 @@ def test_history_uses_bounded_command_objects():
     assert isinstance(history.undo_stack[0], HistoryCommand)
     restored_layers, _ = history.undo([second], 0)
     assert restored_layers[0].name == "Second"
+
+
+def test_history_compacts_previous_image_state_to_diff_command():
+    before = Layer("Paint", image=Image.new("RGBA", (3, 3), (0, 0, 0, 0)))
+    after = Layer("Paint", image=before.image.copy())
+    after.image.putpixel((1, 1), (255, 0, 0, 255))
+    history = HistoryManager(max_states=3)
+
+    history.save_state([before], 0)
+    history.save_state([after], 0)
+
+    compacted = history.undo_stack[0]
+    assert isinstance(compacted, DiffHistoryCommand)
+    assert compacted.patches[0].bbox == (1, 1, 2, 2)
+
+    restored_layers, _ = compacted.undo([after])
+    assert restored_layers[0].image.getpixel((1, 1)) == (0, 0, 0, 0)
 
 
 def test_blend_layers_normal_does_not_mutate_base_image():
