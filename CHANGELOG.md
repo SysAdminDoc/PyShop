@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.7 - 2026-06-27
+
+- Added editor-level Qt signals for layer and active-layer changes, then routed layer panel refresh through those signals.
+
 ## PyShop v0.1.6 - 2026-06-27
 
 - Added diff-backed history commands for same-structure layer edits, with snapshot fallback for structural changes.
