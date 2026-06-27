@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.8 - 2026-06-27
+
+- Added core tile geometry helpers and routed canvas composite painting through bounded image tiles.
+
 ## PyShop v0.1.7 - 2026-06-27
 
 - Added editor-level Qt signals for layer and active-layer changes, then routed layer panel refresh through those signals.
