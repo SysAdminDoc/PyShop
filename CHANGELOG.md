@@ -1,5 +1,10 @@
 # Changelog
 
+## PyShop v0.1.4 - 2026-06-27
+
+- Added a `pyshop.tools` registry for toolbar metadata, options grouping, cursor metadata, and input-handler routing.
+- Removed installed keyboard shortcuts from menu, toolbar, and swap-color actions while preserving clickable controls.
+
 ## PyShop v0.1.3 - 2026-06-27
 
 - Extracted document construction, color conversion, brush/eraser painting, and selection bounds helpers into `pyshop.core`.
