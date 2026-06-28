@@ -10,6 +10,7 @@ from PIL import Image, UnidentifiedImageError
 
 from .document import MAX_DOCUMENT_PIXELS
 from .layer import Layer
+from .macros import macro_steps_from_records, macro_steps_to_records
 
 
 PROJECT_FILE_SUFFIX = ".pyshop"
@@ -90,7 +91,7 @@ def save_project(
             "guides": _guides(guides),
             "current_path": _path_points(current_path),
             "current_path_closed": bool(current_path_closed),
-            "macro_steps": _macro_steps(macro_steps),
+            "macro_steps": macro_steps_to_records(macro_steps),
             "layers": layer_records,
         }
         archive.writestr(PROJECT_MANIFEST_NAME, json.dumps(manifest, indent=2, sort_keys=True))
@@ -127,7 +128,7 @@ def load_project(path, max_pixels: int = MAX_DOCUMENT_PIXELS) -> ProjectState:
                 guides=_guides(manifest.get("guides")),
                 current_path=_path_points(manifest.get("current_path")),
                 current_path_closed=bool(manifest.get("current_path_closed", False)),
-                macro_steps=_restore_macro_steps(manifest.get("macro_steps")),
+                macro_steps=macro_steps_from_records(manifest.get("macro_steps", [])),
                 document_size=(width, height),
             )
     except ProjectFormatError:
@@ -283,26 +284,3 @@ def _path_points(value) -> list:
             points.append((item[0], item[1]))
     return points
 
-
-def _macro_steps(value) -> list:
-    steps = []
-    for item in value or []:
-        if isinstance(item, (list, tuple)) and len(item) == 2:
-            command, args = item
-            steps.append({"command": str(command), "args": _jsonable(list(args))})
-    return steps
-
-
-def _restore_macro_steps(value) -> list:
-    steps = []
-    for item in value or []:
-        if isinstance(item, dict):
-            command = item.get("command")
-            args = item.get("args", [])
-        elif isinstance(item, (list, tuple)) and len(item) == 2:
-            command, args = item
-        else:
-            continue
-        if command:
-            steps.append((str(command), tuple(args or ())))
-    return steps

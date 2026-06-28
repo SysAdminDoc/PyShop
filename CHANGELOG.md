@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.31 - 2026-06-28
+
+- Added QSettings-backed workspace preset persistence plus validated macro save/load/replay support using `.pyshopmacro` files and native project macro storage.
+
 ## PyShop v0.1.30 - 2026-06-28
 
 - Moved canvas mouse behavior behind registered tool-handler objects with focused handler tests for paint, selection, crop, path, text, shape, and retouch workflows.

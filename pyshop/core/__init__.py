@@ -28,6 +28,15 @@ from .document import (
 )
 from .history import DiffHistoryCommand, HistoryCommand, HistoryManager, PairedSnapshotCommand
 from .layer import Layer, clone_layer_state
+from .macros import (
+    ALLOWED_MACRO_COMMANDS,
+    MACRO_FILE_SUFFIX,
+    MacroFormatError,
+    load_macro_file,
+    macro_steps_from_records,
+    macro_steps_to_records,
+    save_macro_file,
+)
 from .path import selection_mask_bounds
 from .project import (
     PROJECT_FILE_SUFFIX,
@@ -48,10 +57,13 @@ __all__ = [
     "DEFAULT_TILE_SIZE",
     "DiffHistoryCommand",
     "Document",
+    "ALLOWED_MACRO_COMMANDS",
     "HistoryManager",
     "HistoryCommand",
     "ImageOpenError",
+    "MACRO_FILE_SUFFIX",
     "MAX_DOCUMENT_PIXELS",
+    "MacroFormatError",
     "PairedSnapshotCommand",
     "PSDExportError",
     "PSDImportError",
@@ -82,7 +94,10 @@ __all__ = [
     "iter_tile_boxes",
     "is_project_path",
     "load_psd_layers",
+    "load_macro_file",
     "load_project",
+    "macro_steps_from_records",
+    "macro_steps_to_records",
     "named_background_rgba",
     "open_raster_image",
     "paint_brush_dab",
@@ -93,6 +108,7 @@ __all__ = [
     "render_text_tile",
     "render_vector_shape_tile",
     "save_flattened_psd",
+    "save_macro_file",
     "save_project",
     "selection_mask_bounds",
     "smoothed_brush_point",
