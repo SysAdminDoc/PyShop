@@ -27,6 +27,14 @@ from .document import (
 from .history import DiffHistoryCommand, HistoryCommand, HistoryManager, PairedSnapshotCommand
 from .layer import Layer, clone_layer_state
 from .path import selection_mask_bounds
+from .project import (
+    PROJECT_FILE_SUFFIX,
+    ProjectFormatError,
+    ProjectState,
+    is_project_path,
+    load_project,
+    save_project,
+)
 from .psd import PSDExportError, PSDImportError, load_psd_layers, save_flattened_psd
 from .retouch import apply_retouch_dab
 from .selection import build_marching_ants_path
@@ -44,7 +52,10 @@ __all__ = [
     "PairedSnapshotCommand",
     "PSDExportError",
     "PSDImportError",
+    "PROJECT_FILE_SUFFIX",
     "BrushSettings",
+    "ProjectFormatError",
+    "ProjectState",
     "TileBox",
     "TiledCompositeCache",
     "Layer",
@@ -65,7 +76,9 @@ __all__ = [
     "iter_brush_dabs",
     "iter_intersecting_tile_boxes",
     "iter_tile_boxes",
+    "is_project_path",
     "load_psd_layers",
+    "load_project",
     "named_background_rgba",
     "open_raster_image",
     "paint_brush_dab",
@@ -76,6 +89,7 @@ __all__ = [
     "render_text_tile",
     "render_vector_shape_tile",
     "save_flattened_psd",
+    "save_project",
     "selection_mask_bounds",
     "smoothed_brush_point",
 ]

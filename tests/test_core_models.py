@@ -9,6 +9,7 @@ from pyshop.core import (
     HistoryCommand,
     ImageOpenError,
     Layer,
+    ProjectFormatError,
     apply_channel_visibility,
     apply_retouch_dab,
     blend_layers,
@@ -22,11 +23,13 @@ from pyshop.core import (
     iter_intersecting_tile_boxes,
     iter_tile_boxes,
     load_psd_layers,
+    load_project,
     named_background_rgba,
     open_raster_image,
     paint_brush_dab,
     paint_brush_line,
     paint_brush_stroke,
+    save_project,
     save_flattened_psd,
     selection_mask_bounds,
     smoothed_brush_point,
@@ -252,6 +255,77 @@ def test_flattened_psd_save_and_load_round_trip(tmp_path):
 
     assert layers[0].image.size == (2, 2)
     assert layers[0].image.getpixel((0, 0))[3] == 255
+
+
+def test_native_project_round_trip_preserves_document_state(tmp_path):
+    path = tmp_path / "document.pyshop"
+    base = Layer("Base", image=Image.new("RGBA", (3, 2), (10, 20, 30, 255)))
+    base.visible = False
+    base.opacity = 180
+    base.blend_mode = "Multiply"
+    base.locked = True
+    base.mask = Image.new("L", (3, 2), 128)
+    base.mask_density = 40
+    base.mask_feather = 2
+    base.adjustment = {"type": "invert"}
+
+    group = Layer("Group", image=Image.new("RGBA", (3, 2), (0, 0, 0, 0)))
+    group.is_group = True
+    group.group_id = "group-1"
+    group.group_expanded = False
+
+    shape = Layer("Shape", image=Image.new("RGBA", (3, 2), (0, 0, 0, 0)))
+    shape.group_id = "group-1"
+    shape.clipping = True
+    shape.vector_shape = {"type": "rectangle", "box": (0, 0, 2, 2), "fill": (255, 0, 0, 255)}
+    shape.text_item = {"text": "Hi", "x": 1, "y": 1, "size": 14, "fill": (1, 2, 3, 255)}
+
+    saved_path = save_project(
+        path,
+        [base, group, shape],
+        active_layer_index=2,
+        channel_visibility={"red": False, "green": True, "blue": False, "alpha": True},
+        guides=[("vertical", 1), ("horizontal", 2)],
+        current_path=[(0.5, 1.5), (2, 1), (1, 0)],
+        current_path_closed=True,
+        macro_steps=[("set_tool", ("brush",)), ("set_show_grid", (True,))],
+    )
+
+    restored = load_project(saved_path)
+
+    assert restored.document_size == (3, 2)
+    assert restored.active_layer_index == 2
+    assert restored.channel_visibility == {"red": False, "green": True, "blue": False, "alpha": True}
+    assert restored.guides == [("vertical", 1), ("horizontal", 2)]
+    assert restored.current_path == [(0.5, 1.5), (2, 1), (1, 0)]
+    assert restored.current_path_closed is True
+    assert restored.macro_steps == [("set_tool", ("brush",)), ("set_show_grid", (True,))]
+    assert [layer.name for layer in restored.layers] == ["Base", "Group", "Shape"]
+    restored_base, restored_group, restored_shape = restored.layers
+    assert restored_base.visible is False
+    assert restored_base.opacity == 180
+    assert restored_base.blend_mode == "Multiply"
+    assert restored_base.locked is True
+    assert restored_base.mask.getpixel((0, 0)) == 128
+    assert restored_base.mask_density == 40
+    assert restored_base.mask_feather == 2
+    assert restored_base.adjustment == {"type": "invert"}
+    assert restored_group.is_group is True
+    assert restored_group.group_id == "group-1"
+    assert restored_group.group_expanded is False
+    assert restored_shape.group_id == "group-1"
+    assert restored_shape.clipping is True
+    assert restored_shape.vector_shape == {"type": "rectangle", "box": (0, 0, 2, 2), "fill": (255, 0, 0, 255)}
+    assert restored_shape.text_item == {"text": "Hi", "x": 1, "y": 1, "size": 14, "fill": (1, 2, 3, 255)}
+    assert restored_base.image.getpixel((0, 0)) == (10, 20, 30, 255)
+
+
+def test_native_project_rejects_oversized_document(tmp_path):
+    path = tmp_path / "large.pyshop"
+    layer = Layer("Large", image=Image.new("RGBA", (2, 2), (0, 0, 0, 0)))
+
+    with pytest.raises(ProjectFormatError, match="too large"):
+        save_project(path, [layer], max_pixels=3)
 
 
 def test_open_raster_image_rejects_oversized_files(tmp_path):

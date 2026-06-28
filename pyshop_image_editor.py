@@ -25,13 +25,17 @@ from pyshop.core import (
     image_document_layers,
     iter_brush_dabs,
     iter_intersecting_tile_boxes,
+    is_project_path,
+    load_project,
     named_background_rgba,
     open_raster_image,
     paint_brush_stroke,
+    PROJECT_FILE_SUFFIX,
     qcolor_to_rgba,
     selection_mask_bounds,
     load_psd_layers,
     save_flattened_psd,
+    save_project,
     smoothed_brush_point,
     TiledCompositeCache,
 )
@@ -994,6 +998,12 @@ class ChannelPanel(QWidget):
         self.editor.canvas.update()
         self.editor.refresh_analysis_panels()
 
+    def refresh(self):
+        for channel, check in self.checks.items():
+            check.blockSignals(True)
+            check.setChecked(self.editor.channel_visibility.get(channel, True))
+            check.blockSignals(False)
+
 
 class PathsPanel(QWidget):
     def __init__(self, editor):
@@ -1665,6 +1675,50 @@ class ImageEditor(QMainWindow):
         if hasattr(self, "paths_panel"):
             self.paths_panel.refresh()
 
+    def refresh_channel_panel(self):
+        if hasattr(self, "channel_panel"):
+            self.channel_panel.refresh()
+
+    def reset_document_metadata(self):
+        self.guides.clear()
+        self.channel_visibility = {"red": True, "green": True, "blue": True, "alpha": True}
+        self.current_path = []
+        self.current_path_closed = False
+        self.macro_recording = False
+        self.macro_replaying = False
+        self.macro_steps = []
+        self.refresh_paths_panel()
+        self.refresh_channel_panel()
+
+    def apply_project_state(self, state, path):
+        self.layers = state.layers
+        self.set_active_layer_index(state.active_layer_index)
+        self.channel_visibility = state.channel_visibility
+        self.guides = state.guides
+        self.current_path = state.current_path
+        self.current_path_closed = state.current_path_closed
+        self.macro_recording = False
+        self.macro_replaying = False
+        self.macro_steps = state.macro_steps
+        self.history = HistoryManager()
+        self.file_path = path
+        self.refresh_paths_panel()
+        self.refresh_channel_panel()
+        self.canvas.clear_selection()
+        self.update_layer_panel()
+        self.canvas.fit_in_view()
+
+    def project_save_kwargs(self):
+        return {
+            "layers": self.layers,
+            "active_layer_index": self.active_layer_index,
+            "channel_visibility": self.channel_visibility,
+            "guides": self.guides,
+            "current_path": self.current_path,
+            "current_path_closed": self.current_path_closed,
+            "macro_steps": self.macro_steps,
+        }
+
     def add_path_point(self, x, y):
         self.current_path.append((x, y))
         self.current_path_closed = False
@@ -1719,32 +1773,36 @@ class ImageEditor(QMainWindow):
             w, h = ws.value(), hs.value()
             self.layers = create_document_layers(w, h, named_background_rgba(bg.currentText()))
             self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
-            self.guides.clear()
-            self.current_path = []; self.current_path_closed = False; self.refresh_paths_panel()
+            self.reset_document_metadata()
             self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
             self.setWindowTitle(f"{APP_DISPLAY_NAME} - Untitled")
 
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Image", "",
-            "Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)")
+            "PyShop Projects (*.pyshop);;Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)")
         if path:
             try:
-                if path.lower().endswith(".psd"):
+                if is_project_path(path):
+                    state = load_project(path)
+                    self.apply_project_state(state, path)
+                    title_prefix = APP_DISPLAY_NAME
+                    self.statusBar().showMessage(f"Opened PyShop project {path}")
+                elif path.lower().endswith(".psd"):
                     self.layers = load_psd_layers(path)
-                    opened_file_path = None
                     title_prefix = "Imported PSD"
+                    self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
+                    self.reset_document_metadata()
+                    self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
+                    self.statusBar().showMessage("PSD imported as PyShop layers; save as a PyShop project or export a flattened PSD")
                 else:
                     img = open_raster_image(path)
                     self.layers = image_document_layers(img)
-                    opened_file_path = path
-                    title_prefix = APP_DISPLAY_NAME
-                self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = opened_file_path
-                self.guides.clear()
-                self.current_path = []; self.current_path_closed = False; self.refresh_paths_panel()
-                self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
+                    title_prefix = "Imported Image"
+                    self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
+                    self.reset_document_metadata()
+                    self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
+                    self.statusBar().showMessage("Raster imported; save as a PyShop project or export a flattened image")
                 self.setWindowTitle(f"{title_prefix} - {os.path.basename(path)}")
-                if opened_file_path is None:
-                    self.statusBar().showMessage("PSD imported as PyShop layers; use Save As or Export Flattened PSD for output")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to open image:\n{e}")
 
@@ -1753,22 +1811,45 @@ class ImageEditor(QMainWindow):
         else: self.save_image_as()
 
     def save_image_as(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Save Image", "",
-            "PNG (*.png);;JPEG (*.jpg);;BMP (*.bmp);;All Files (*)")
+        path, selected_filter = QFileDialog.getSaveFileName(self, "Save Image", "",
+            "PyShop Project (*.pyshop);;PNG (*.png);;JPEG (*.jpg *.jpeg);;BMP (*.bmp);;All Files (*)")
         if path:
-            self.file_path = path; self._save_to(path)
-            self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
+            path = self.path_for_selected_save_filter(path, selected_filter)
+            if self._save_to(path):
+                if is_project_path(path):
+                    self.file_path = path
+                    self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
+                else:
+                    self.file_path = None
 
     def _save_to(self, path):
         try:
+            if is_project_path(path):
+                save_project(path, **self.project_save_kwargs())
+                self.statusBar().showMessage(f"Saved PyShop project to {path}")
+                return True
             c = self.get_composite()
-            if c:
-                if path.lower().endswith(".psd"):
-                    raise RuntimeError("Save does not write PSD because it would flatten layer metadata. Use Export Flattened PSD instead.")
-                if path.lower().endswith(('.jpg','.jpeg')): c = c.convert("RGB")
-                c.save(path); self.statusBar().showMessage(f"Saved to {path}")
+            if not c:
+                return False
+            if path.lower().endswith(".psd"):
+                raise RuntimeError("Save does not write PSD because it would flatten layer metadata. Use Export Flattened PSD instead.")
+            if path.lower().endswith(('.jpg','.jpeg')): c = c.convert("RGB")
+            c.save(path); self.statusBar().showMessage(f"Saved flattened image to {path}")
+            return True
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save:\n{e}")
+            return False
+
+    def path_for_selected_save_filter(self, path, selected_filter):
+        if os.path.splitext(path)[1]:
+            return path
+        if "PNG" in selected_filter:
+            return f"{path}.png"
+        if "JPEG" in selected_filter:
+            return f"{path}.jpg"
+        if "BMP" in selected_filter:
+            return f"{path}.bmp"
+        return f"{path}{PROJECT_FILE_SUFFIX}"
 
     def export_png(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export PNG", "", "PNG (*.png)")

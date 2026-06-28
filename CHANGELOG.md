@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.28 - 2026-06-28
+
+- Added native `.pyshop` layered project save/open support with metadata round-tripping for layers, masks, groups, text/vector layers, adjustments, paths, guides, channels, active layer, and macro steps.
+
 ## PyShop v0.1.27 - 2026-06-28
 
 - Hardened raster and PSD file I/O with safe pixel-count checks, psd-tools-backed flattened PSD export, and Save/Save As guardrails that prevent accidental layered PSD data loss.

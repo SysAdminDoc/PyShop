@@ -1,6 +1,6 @@
-# PyShop v0.1.27
+# PyShop v0.1.28
 
-![Version](https://img.shields.io/badge/version-v0.1.27-7c3aed)
+![Version](https://img.shields.io/badge/version-v0.1.28-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Language](https://img.shields.io/badge/language-Python-3776AB)
 ![Type](https://img.shields.io/badge/type-Desktop%20App-brightgreen)
@@ -13,7 +13,7 @@ An open-source alternative to Photoshop written in Python. Full-featured image e
 - **Selection Tools** — Rectangular, elliptical, lasso, and magic wand selections
 - **Brush Engine** — Customizable brushes with size, opacity, and hardness controls
 - **Filters & Effects** — Blur, sharpen, color adjustments, transforms, and more
-- **File Support** — Open common raster formats plus PSD imports; save raster outputs and explicitly export flattened PSDs
+- **File Support** — Save and reopen native `.pyshop` layered projects; import common raster formats and PSDs; export flattened raster images and flattened PSDs
 - **Dark Theme** — Professional dark-themed interface
 - **Undo/Redo** — Full history support
 
@@ -43,7 +43,8 @@ PyQt5 is available under GPL/commercial licensing from Riverbank. Keep that lice
 ## Manual QA Checklist
 
 - Open an existing PNG or JPG and confirm the canvas renders with zoom and pan working.
-- Import a PSD and confirm Save As does not overwrite it; use Export Flattened PSD only when flattened output is intended.
+- Import a PNG, JPG, or PSD and confirm Save As defaults to a `.pyshop` project instead of overwriting the source file.
+- Save a layered `.pyshop` project, reopen it, and confirm layers, masks, groups, text/vector metadata, paths, guides, channels, and macro steps are preserved.
 - Paint with brush and eraser tools, then undo and redo the edits.
 - Add, duplicate, reorder, hide, lock, and merge layers while confirming the canvas composite updates.
 - Create rectangular, elliptical, lasso, and magic wand selections, then clear and invert selections.
