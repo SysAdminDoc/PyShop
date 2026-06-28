@@ -91,6 +91,21 @@ def test_blend_layers_normal_does_not_mutate_base_image():
     assert result.getpixel((0, 0)) != base.getpixel((0, 0))
 
 
+def test_advertised_blend_modes_render_without_mutating_inputs():
+    base = Image.new("RGBA", (2, 2), (50, 100, 150, 255))
+    top = Image.new("RGBA", (2, 2), (200, 80, 40, 192))
+    base_before = base.copy()
+    top_before = top.copy()
+
+    for mode in Layer.BLEND_MODES:
+        result = blend_layers(base, top, mode)
+        assert result.size == base.size
+        assert result.mode == "RGBA"
+
+    assert base.tobytes() == base_before.tobytes()
+    assert top.tobytes() == top_before.tobytes()
+
+
 def test_selection_path_is_none_for_empty_mask_and_present_for_selection():
     empty = np.zeros((3, 3), dtype=np.uint8)
     selected = empty.copy()
