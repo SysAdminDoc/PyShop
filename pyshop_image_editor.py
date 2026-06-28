@@ -18,6 +18,7 @@ from pyshop.core import (
     Layer,
     apply_channel_visibility,
     build_marching_ants_path,
+    clone_layer_state,
     composite_layers,
     create_document_layers,
     apply_retouch_dab,
@@ -59,7 +60,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QTextEdit, QAbstractItemView, QTabWidget, QProgressBar
 )
 from PyQt5.QtCore import (
-    Qt, QPoint, QRect, QSize, QTimer, pyqtSignal, QPointF, QRectF, QSettings
+    Qt, QPoint, QRect, QSize, QTimer, pyqtSignal, QPointF, QRectF, QSettings, QThread
 )
 from PyQt5.QtGui import (
     QImage, QPixmap, QPainter, QPen, QBrush, QColor, QIcon,
@@ -806,6 +807,33 @@ def pil_to_qpixmap(image, max_size):
     return QPixmap.fromImage(qimg)
 
 
+class ImageJobWorker(QThread):
+    progress = pyqtSignal(str, int)
+    succeeded = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, job_name, job_func, parent=None):
+        super().__init__(parent)
+        self.job_name = job_name
+        self.job_func = job_func
+        self.cancel_requested = False
+
+    def cancel(self):
+        self.cancel_requested = True
+
+    def run(self):
+        try:
+            self.progress.emit(self.job_name, 0)
+            result = self.job_func(self.progress.emit, lambda: self.cancel_requested)
+            if self.cancel_requested:
+                self.failed.emit(f"{self.job_name} cancelled")
+                return
+            self.progress.emit(self.job_name, 100)
+            self.succeeded.emit(result)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class NavigatorPanel(QWidget):
     def __init__(self, editor):
         super().__init__()
@@ -1215,6 +1243,7 @@ class ImageEditor(QMainWindow):
         self.settings = QSettings("SysAdminDoc", "PyShop")
         self.docks = {}
         self.clone_source = None; self.history = HistoryManager()
+        self.current_job = None
         self.init_ui(); self.showMaximized()
 
     @property
@@ -1308,6 +1337,7 @@ class ImageEditor(QMainWindow):
         self.canvas.color_picked.connect(self.set_fg_color)
         self.setCentralWidget(self.canvas)
         self.create_menus(); self.create_toolbars(); self.create_panels()
+        self.create_job_status_widgets()
         self.restore_workspace_preset(silent=True)
         self.statusBar().showMessage("Ready")
 
@@ -1732,6 +1762,72 @@ class ImageEditor(QMainWindow):
     def project_save_kwargs(self):
         return self.document.project_save_kwargs()
 
+    def create_job_status_widgets(self):
+        self.job_progress = QProgressBar()
+        self.job_progress.setRange(0, 100)
+        self.job_progress.setFixedWidth(160)
+        self.job_progress.hide()
+        self.cancel_job_button = QPushButton("Cancel")
+        self.cancel_job_button.clicked.connect(self.cancel_active_job)
+        self.cancel_job_button.hide()
+        self.statusBar().addPermanentWidget(self.job_progress)
+        self.statusBar().addPermanentWidget(self.cancel_job_button)
+
+    def cancel_active_job(self):
+        if self.current_job and self.current_job.isRunning():
+            self.current_job.cancel()
+            self.statusBar().showMessage("Cancel requested")
+
+    def start_background_job(self, name, job_func, on_success):
+        if self.current_job and self.current_job.isRunning():
+            self.statusBar().showMessage("Another image job is already running")
+            return False
+        worker = ImageJobWorker(name, job_func, self)
+        self.current_job = worker
+        self.job_progress.setValue(0)
+        self.job_progress.show()
+        self.cancel_job_button.show()
+        worker.progress.connect(self.on_job_progress)
+        worker.succeeded.connect(lambda result: self.on_job_succeeded(worker, on_success, result))
+        worker.failed.connect(lambda message: self.on_job_failed(worker, message))
+        worker.start()
+        return True
+
+    def on_job_progress(self, message, value):
+        self.job_progress.setValue(max(0, min(100, value)))
+        self.statusBar().showMessage(message)
+
+    def finish_job(self, worker):
+        if self.current_job is worker:
+            self.current_job = None
+        self.job_progress.hide()
+        self.cancel_job_button.hide()
+        worker.deleteLater()
+
+    def on_job_succeeded(self, worker, on_success, result):
+        try:
+            on_success(result)
+        finally:
+            self.finish_job(worker)
+
+    def on_job_failed(self, worker, message):
+        self.finish_job(worker)
+        self.statusBar().showMessage(message)
+        if "cancelled" not in message.lower():
+            QMessageBox.critical(self, "Error", message)
+
+    def project_snapshot_for_worker(self):
+        return {
+            "layers": [clone_layer_state(layer) for layer in self.layers],
+            "active_layer_index": self.active_layer_index,
+            "selection_mask": self.canvas.selection_mask.copy() if self.canvas.selection_mask is not None else None,
+            "channel_visibility": dict(self.channel_visibility),
+            "guides": list(self.guides),
+            "current_path": list(self.current_path),
+            "current_path_closed": self.current_path_closed,
+            "macro_steps": list(self.macro_steps),
+        }
+
     def add_path_point(self, x, y):
         self.current_path.append((x, y))
         self.current_path_closed = False
@@ -1794,30 +1890,44 @@ class ImageEditor(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "Open Image", "",
             "PyShop Projects (*.pyshop);;Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)")
         if path:
-            try:
-                if is_project_path(path):
-                    state = load_project(path)
-                    self.apply_project_state(state, path)
-                    title_prefix = APP_DISPLAY_NAME
-                    self.statusBar().showMessage(f"Opened PyShop project {path}")
-                elif path.lower().endswith(".psd"):
-                    self.layers = load_psd_layers(path)
-                    title_prefix = "Imported PSD"
-                    self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
-                    self.reset_document_metadata()
-                    self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
-                    self.statusBar().showMessage("PSD imported as PyShop layers; save as a PyShop project or export a flattened PSD")
-                else:
-                    img = open_raster_image(path)
-                    self.layers = image_document_layers(img)
-                    title_prefix = "Imported Image"
-                    self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
-                    self.reset_document_metadata()
-                    self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
-                    self.statusBar().showMessage("Raster imported; save as a PyShop project or export a flattened image")
-                self.setWindowTitle(f"{title_prefix} - {os.path.basename(path)}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to open image:\n{e}")
+            self.start_background_job("Opening image", self.open_document_job(path), self.finish_open_document)
+
+    def open_document_job(self, path):
+        def job(progress, is_cancelled):
+            progress("Opening image", 10)
+            if is_cancelled():
+                return None
+            if is_project_path(path):
+                state = load_project(path)
+                return {"kind": "project", "path": path, "state": state}
+            if path.lower().endswith(".psd"):
+                layers = load_psd_layers(path)
+                return {"kind": "psd", "path": path, "layers": layers}
+            image = open_raster_image(path)
+            return {"kind": "raster", "path": path, "layers": image_document_layers(image)}
+        return job
+
+    def finish_open_document(self, result):
+        if result is None:
+            return
+        path = result["path"]
+        if result["kind"] == "project":
+            self.apply_project_state(result["state"], path)
+            title_prefix = APP_DISPLAY_NAME
+            message = f"Opened PyShop project {path}"
+        else:
+            self.layers = result["layers"]
+            title_prefix = "Imported PSD" if result["kind"] == "psd" else "Imported Image"
+            self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
+            self.reset_document_metadata()
+            self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
+            message = (
+                "PSD imported as PyShop layers; save as a PyShop project or export a flattened PSD"
+                if result["kind"] == "psd"
+                else "Raster imported; save as a PyShop project or export a flattened image"
+            )
+        self.setWindowTitle(f"{title_prefix} - {os.path.basename(path)}")
+        self.statusBar().showMessage(message)
 
     def save_image(self):
         if self.file_path: self._save_to(self.file_path)
@@ -1828,31 +1938,44 @@ class ImageEditor(QMainWindow):
             "PyShop Project (*.pyshop);;PNG (*.png);;JPEG (*.jpg *.jpeg);;BMP (*.bmp);;All Files (*)")
         if path:
             path = self.path_for_selected_save_filter(path, selected_filter)
-            if self._save_to(path):
-                if is_project_path(path):
-                    self.file_path = path
-                    self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
-                else:
-                    self.file_path = None
+            self._save_to(path, remember_native_path=is_project_path(path))
 
-    def _save_to(self, path):
-        try:
+    def _save_to(self, path, remember_native_path=False):
+        snapshot = self.project_snapshot_for_worker()
+
+        def job(progress, is_cancelled):
+            progress("Preparing save", 10)
+            if is_cancelled():
+                return None
             if is_project_path(path):
-                save_project(path, **self.project_save_kwargs())
-                self.document.mark_saved()
-                self.statusBar().showMessage(f"Saved PyShop project to {path}")
-                return True
-            c = self.get_composite()
-            if not c:
-                return False
+                save_project(path, **snapshot)
+                return {"path": path, "kind": "project", "remember_native_path": remember_native_path}
+            progress("Compositing image", 35)
+            c = composite_layers(snapshot["layers"])
+            if c is None:
+                raise RuntimeError("No image to save.")
+            c = apply_channel_visibility(c, snapshot["channel_visibility"])
             if path.lower().endswith(".psd"):
                 raise RuntimeError("Save does not write PSD because it would flatten layer metadata. Use Export Flattened PSD instead.")
             if path.lower().endswith(('.jpg','.jpeg')): c = c.convert("RGB")
-            c.save(path); self.statusBar().showMessage(f"Saved flattened image to {path}")
-            return True
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save:\n{e}")
-            return False
+            progress("Writing image", 75)
+            c.save(path)
+            return {"path": path, "kind": "flattened", "remember_native_path": False}
+        return self.start_background_job("Saving image", job, self.finish_save_document)
+
+    def finish_save_document(self, result):
+        if result is None:
+            return
+        path = result["path"]
+        if result["kind"] == "project":
+            self.document.mark_saved()
+            if result["remember_native_path"]:
+                self.file_path = path
+                self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
+            self.statusBar().showMessage(f"Saved PyShop project to {path}")
+        else:
+            self.file_path = None
+            self.statusBar().showMessage(f"Saved flattened image to {path}")
 
     def path_for_selected_save_filter(self, path, selected_filter):
         if os.path.splitext(path)[1]:
@@ -1868,21 +1991,37 @@ class ImageEditor(QMainWindow):
     def export_png(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export PNG", "", "PNG (*.png)")
         if path:
-            c = self.get_composite()
-            if c: c.save(path, "PNG"); self.statusBar().showMessage(f"Exported to {path}")
+            self.export_flattened_image(path, "PNG")
 
     def export_flattened_psd(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export Flattened PSD", "", "Flattened PSD (*.psd)")
         if path:
             if not path.lower().endswith(".psd"):
                 path += ".psd"
-            try:
-                c = self.get_composite()
-                if c:
-                    save_flattened_psd(path, c)
-                    self.statusBar().showMessage(f"Exported flattened PSD to {path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to export flattened PSD:\n{e}")
+            self.export_flattened_image(path, "PSD")
+
+    def export_flattened_image(self, path, format_name):
+        snapshot = self.project_snapshot_for_worker()
+
+        def job(progress, is_cancelled):
+            progress("Compositing export", 35)
+            if is_cancelled():
+                return None
+            composite = composite_layers(snapshot["layers"])
+            if composite is None:
+                raise RuntimeError("No image to export.")
+            composite = apply_channel_visibility(composite, snapshot["channel_visibility"])
+            progress("Writing export", 80)
+            if format_name == "PSD":
+                save_flattened_psd(path, composite)
+            else:
+                composite.save(path, format_name)
+            return {"path": path, "format": format_name}
+        self.start_background_job("Exporting image", job, self.finish_export_image)
+
+    def finish_export_image(self, result):
+        if result is not None:
+            self.statusBar().showMessage(f"Exported {result['format']} to {result['path']}")
 
     # Edit ops
     def undo(self):
@@ -2148,7 +2287,36 @@ class ImageEditor(QMainWindow):
         if self.active_layer_index <= 0:
             self.statusBar().showMessage("Effect layer needs a layer below to rasterize")
             return
-        self.merge_down()
+        effect_index = self.active_layer_index
+        bottom = clone_layer_state(self.layers[effect_index - 1])
+        effect_layer = clone_layer_state(layer)
+
+        def job(progress, is_cancelled):
+            progress("Rasterizing effect", 35)
+            if is_cancelled():
+                return None
+            return {"index": effect_index, "image": composite_layers([bottom, effect_layer])}
+
+        self.start_background_job("Rasterizing effect", job, self.finish_rasterize_effect)
+
+    def finish_rasterize_effect(self, result):
+        if result is None:
+            return
+        effect_index = result["index"]
+        if effect_index <= 0 or effect_index >= len(self.layers):
+            self.statusBar().showMessage("Effect layer changed before rasterize completed")
+            return
+        self.history.save_state(self.layers, self.active_layer_index)
+        bottom = self.layers[effect_index - 1]
+        top = self.layers[effect_index]
+        bottom.image = result["image"]
+        bottom.mask = None
+        bottom.clipping = False
+        bottom.name = f"{bottom.name} + {top.name}"
+        del self.layers[effect_index]
+        self.set_active_layer_index(effect_index - 1)
+        self.notify_layers_changed()
+        self.canvas.update()
         self.statusBar().showMessage("Rasterized effect layer into layer below")
 
     def adjust_brightness_contrast(self):

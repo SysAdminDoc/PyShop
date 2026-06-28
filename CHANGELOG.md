@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.33 - 2026-06-28
+
+- Moved image open/save/export and effect rasterize work onto status-bar background jobs with progress reporting and cancel requests.
+
 ## PyShop v0.1.32 - 2026-06-28
 
 - Added editable non-destructive effect layers for blur, sharpen, stylize, posterize, solarize, and pixelate filters, including serialization and explicit rasterize-down support.

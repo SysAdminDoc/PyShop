@@ -1,6 +1,6 @@
-# PyShop v0.1.32
+# PyShop v0.1.33
 
-![Version](https://img.shields.io/badge/version-v0.1.32-7c3aed)
+![Version](https://img.shields.io/badge/version-v0.1.33-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Language](https://img.shields.io/badge/language-Python-3776AB)
 ![Type](https://img.shields.io/badge/type-Desktop%20App-brightgreen)
@@ -17,6 +17,7 @@ An open-source alternative to Photoshop written in Python. Full-featured image e
 - **Dark Theme** — Professional dark-themed interface
 - **Undo/Redo** — Full history support
 - **Automation** — Record, save, load, replay, and persist action macros with workspace presets
+- **Responsive Jobs** — Open, save, export, and effect rasterize operations run through cancellable status-bar background jobs
 
 ## Installation
 
