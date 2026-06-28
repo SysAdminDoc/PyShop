@@ -62,6 +62,7 @@ from pyshop.core import (
 )
 from pyshop.tools import CanvasToolEvent, DEFAULT_TOOL_REGISTRY, build_default_tool_handlers
 from pyshop.ui import CanvasViewport, snap_point_to_guides
+from pyshop.windows_shell import install_windows_shell, remove_windows_shell
 
 
 RAW_FILE_PATTERNS = " ".join(f"*{extension}" for extension in sorted(RAW_EXTENSIONS))
@@ -1371,6 +1372,8 @@ class ImageEditor(QMainWindow):
         self._act(fm, "&New...", "Ctrl+N", self.new_image)
         self._act(fm, "&Open...", "Ctrl+O", self.open_image)
         self._act(fm, "Recover Autosave", "", self.recover_autosave_project)
+        self._act(fm, "Install Windows Shell Integration", "", self.install_shell_integration)
+        self._act(fm, "Remove Windows Shell Integration", "", self.remove_shell_integration)
         fm.addSeparator()
         self._act(fm, "&Save", "Ctrl+S", self.save_image)
         self._act(fm, "Save &As...", "Ctrl+Shift+S", self.save_image_as)
@@ -1963,13 +1966,37 @@ class ImageEditor(QMainWindow):
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Image", "", self.open_file_filter())
         if path:
-            self.start_background_job("Opening image", self.open_document_job(path), self.finish_open_document)
+            self.open_path(path)
+
+    def open_path(self, path):
+        if not os.path.exists(path):
+            QMessageBox.critical(self, "Error", f"File does not exist:\n{path}")
+            return False
+        return self.start_background_job("Opening image", self.open_document_job(path), self.finish_open_document)
 
     def open_file_filter(self):
         return (
             f"PyShop Projects (*.pyshop);;OpenRaster (*.ora);;RAW Images ({RAW_FILE_PATTERNS});;"
             "Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp);;All Files (*)"
         )
+
+    def install_shell_integration(self):
+        try:
+            count = install_windows_shell()
+            self.statusBar().showMessage(f"Installed Windows shell integration ({count} registry values)")
+        except Exception as exc:
+            log_path = write_error_log("Install Windows shell integration", exc)
+            self.statusBar().showMessage(f"Shell integration install failed (log: {log_path})")
+            QMessageBox.critical(self, "Error", f"Failed to install Windows shell integration:\n{exc}\n\nLog: {log_path}")
+
+    def remove_shell_integration(self):
+        try:
+            count = remove_windows_shell()
+            self.statusBar().showMessage(f"Removed Windows shell integration ({count} registry keys)")
+        except Exception as exc:
+            log_path = write_error_log("Remove Windows shell integration", exc)
+            self.statusBar().showMessage(f"Shell integration removal failed (log: {log_path})")
+            QMessageBox.critical(self, "Error", f"Failed to remove Windows shell integration:\n{exc}\n\nLog: {log_path}")
 
     def open_document_job(self, path):
         def job(progress, is_cancelled):
@@ -2733,6 +2760,8 @@ def main():
     app.setStyleSheet(DARK_STYLE)
     editor = ImageEditor()
     editor.show()
+    if len(sys.argv) > 1:
+        QTimer.singleShot(0, lambda: editor.open_path(sys.argv[1]))
     sys.exit(app.exec_())
 
 if __name__ == "__main__":

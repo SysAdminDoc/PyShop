@@ -101,6 +101,16 @@ def test_save_filter_adds_expected_extensions(qtbot):
     assert editor.path_for_selected_save_filter("photo", "JPEG (*.jpg *.jpeg)").endswith(".jpg")
 
 
+def test_open_filter_advertises_project_raw_and_raster_inputs(qtbot):
+    editor = make_editor(qtbot)
+    file_filter = editor.open_file_filter()
+
+    assert "*.pyshop" in file_filter
+    assert "*.dng" in file_filter
+    assert "*.cr3" in file_filter
+    assert "*.png" in file_filter
+
+
 def test_brush_tool_flow_paints_active_layer(qtbot):
     editor = make_editor(qtbot)
     install_small_document(editor)

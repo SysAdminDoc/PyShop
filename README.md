@@ -1,6 +1,6 @@
-# PyShop v0.1.38
+# PyShop v0.1.39
 
-![Version](https://img.shields.io/badge/version-v0.1.38-7c3aed)
+![Version](https://img.shields.io/badge/version-v0.1.39-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Language](https://img.shields.io/badge/language-Python-3776AB)
 ![Type](https://img.shields.io/badge/type-Desktop%20App-brightgreen)
@@ -19,6 +19,7 @@ An open-source alternative to Photoshop written in Python. Full-featured image e
 - **Automation** — Record, save, load, replay, and persist action macros with workspace presets
 - **Responsive Jobs** — Open, save, export, and effect rasterize operations run through cancellable status-bar background jobs
 - **Recovery** — Atomic saves, job error logs, and autosave recovery projects protect in-progress work
+- **Windows Integration** — User-scope `.pyshop` file association, Explorer image context menu, and command-line file opening
 
 ## Installation
 
@@ -54,6 +55,7 @@ PyQt5 is available under GPL/commercial licensing from Riverbank. Keep that lice
 - Create rectangular, elliptical, lasso, and magic wand selections, then clear and invert selections.
 - Apply one adjustment and one filter to the active layer.
 - Save the document, export with a preset, batch-export two inputs, and reopen the output images.
+- Run `python -m pyshop.windows_shell print` and confirm the generated open command points at the current PyShop launch path.
 
 ## Related Tools
 
