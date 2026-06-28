@@ -780,6 +780,7 @@ class LayerPanel(QWidget):
         layout.addLayout(vl)
 
         ml = QHBoxLayout()
+        self.group_btn = QPushButton("Group"); self.group_btn.clicked.connect(self.group_active_layer); ml.addWidget(self.group_btn)
         self.adjustment_btn = QPushButton("Adj"); self.adjustment_btn.clicked.connect(self.add_adjustment_layer); ml.addWidget(self.adjustment_btn)
         self.mask_btn = QPushButton("Mask"); self.mask_btn.clicked.connect(self.add_layer_mask); ml.addWidget(self.mask_btn)
         ml.addWidget(QLabel("Density:"))
@@ -801,7 +802,9 @@ class LayerPanel(QWidget):
             mask = " [M]" if layer.mask is not None else ""
             clip = " [C]" if layer.clipping else ""
             adjustment = " [A]" if layer.adjustment else ""
-            item = QListWidgetItem(f"{vis}{layer.name}{lock}{mask}{clip}{adjustment}")
+            group = " [G]" if layer.is_group else ""
+            prefix = "  " if layer.group_id and not layer.is_group else ""
+            item = QListWidgetItem(f"{prefix}{vis}{layer.name}{lock}{mask}{clip}{adjustment}{group}")
             item.setData(Qt.UserRole, idx)
             self.layer_list.addItem(item)
         active = self.editor.active_layer_index
@@ -905,6 +908,25 @@ class LayerPanel(QWidget):
         self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
         insert_at = self.editor.active_layer_index + 1
         self.editor.layers.insert(insert_at, layer)
+        self.editor.set_active_layer_index(insert_at)
+        self.editor.notify_layers_changed(); self.editor.canvas.update()
+
+    def group_active_layer(self):
+        layer = self.editor.active_layer()
+        if not layer or layer.is_group:
+            return
+        w, h = self.editor.layers[0].image.size
+        group_number = 1 + sum(1 for existing in self.editor.layers if existing.is_group)
+        group_id = f"group-{group_number}"
+        self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
+
+        group = Layer(f"Group {group_number}", w, h)
+        group.is_group = True
+        group.group_id = group_id
+        layer.group_id = group_id
+
+        insert_at = self.editor.active_layer_index
+        self.editor.layers.insert(insert_at, group)
         self.editor.set_active_layer_index(insert_at)
         self.editor.notify_layers_changed(); self.editor.canvas.update()
 

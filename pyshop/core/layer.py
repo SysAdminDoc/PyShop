@@ -44,6 +44,9 @@ class Layer:
         self.mask_feather = 0
         self.clipping = False
         self.adjustment = None
+        self.is_group = False
+        self.group_id = None
+        self.group_expanded = True
         self.image = image.convert("RGBA") if image is not None else Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
     def copy(self):
@@ -64,4 +67,7 @@ def clone_layer_state(layer: Layer) -> Layer:
     snapshot.mask_feather = layer.mask_feather
     snapshot.clipping = layer.clipping
     snapshot.adjustment = copy.deepcopy(layer.adjustment)
+    snapshot.is_group = layer.is_group
+    snapshot.group_id = layer.group_id
+    snapshot.group_expanded = layer.group_expanded
     return snapshot

@@ -18,6 +18,9 @@ class LayerMetadata:
     mask_feather: int
     clipping: bool
     adjustment: dict | None
+    is_group: bool
+    group_id: str | None
+    group_expanded: bool
 
 
 @dataclass
@@ -40,6 +43,9 @@ def _metadata(layer) -> LayerMetadata:
         layer.mask_feather,
         layer.clipping,
         copy.deepcopy(layer.adjustment),
+        layer.is_group,
+        layer.group_id,
+        layer.group_expanded,
     )
 
 
@@ -53,6 +59,9 @@ def _apply_metadata(layer, metadata: LayerMetadata):
     layer.mask_feather = metadata.mask_feather
     layer.clipping = metadata.clipping
     layer.adjustment = copy.deepcopy(metadata.adjustment)
+    layer.is_group = metadata.is_group
+    layer.group_id = metadata.group_id
+    layer.group_expanded = metadata.group_expanded
 
 
 def _same_mask(before, after):

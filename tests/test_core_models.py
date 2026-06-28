@@ -37,6 +37,9 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     layer.mask_feather = 2
     layer.clipping = True
     layer.adjustment = {"type": "invert"}
+    layer.is_group = True
+    layer.group_id = "group-1"
+    layer.group_expanded = False
 
     duplicate = layer.copy()
     layer.image.putpixel((0, 0), (255, 0, 0, 255))
@@ -51,6 +54,9 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     assert duplicate.mask_feather == 2
     assert duplicate.clipping is True
     assert duplicate.adjustment == {"type": "invert"}
+    assert duplicate.is_group is True
+    assert duplicate.group_id == "group-1"
+    assert duplicate.group_expanded is False
     assert duplicate.mask.getpixel((0, 0)) == 128
     assert duplicate.image.getpixel((0, 0)) == (10, 20, 30, 255)
 
@@ -276,3 +282,21 @@ def test_adjustment_layer_composites_without_mutating_source_layer():
 
     assert result.getpixel((0, 0)) == (0, 255, 255, 255)
     assert base.image.getpixel((0, 0)) == (255, 0, 0, 255)
+
+
+def test_group_layer_composites_consecutive_children_with_group_opacity_and_visibility():
+    group = Layer("Group", image=Image.new("RGBA", (1, 1), (0, 0, 0, 0)))
+    group.is_group = True
+    group.group_id = "group-1"
+    group.opacity = 128
+    child = Layer("Child", image=Image.new("RGBA", (1, 1), (255, 0, 0, 255)))
+    child.group_id = "group-1"
+
+    result = composite_layers([group, child])
+
+    assert result.getpixel((0, 0))[3] == 128
+
+    group.visible = False
+    hidden = composite_layers([group, child])
+
+    assert hidden.getpixel((0, 0))[3] == 0

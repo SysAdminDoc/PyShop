@@ -42,6 +42,11 @@ def _clip_to_base(image: Image.Image, base: Image.Image) -> Image.Image:
     return Image.merge("RGBA", (red, green, blue, alpha))
 
 
+def _apply_group_controls(image: Image.Image, group, crop_box) -> Image.Image:
+    image = _apply_mask(image, group, crop_box)
+    return _apply_opacity(image, group.opacity)
+
+
 def _adjustment_effect_mask(layer, base: Image.Image, crop_box):
     mask = Image.new("L", base.size, max(0, min(255, layer.opacity)))
     layer_mask = _effective_mask(layer, crop_box)
@@ -68,8 +73,26 @@ def composite_layers(layers) -> Image.Image | None:
 def composite_layers_tile(layers, tile_box) -> Image.Image:
     result = Image.new("RGBA", (tile_box.width, tile_box.height), (0, 0, 0, 0))
     crop_box = tile_box.as_crop_box()
-    for layer in layers:
+    index = 0
+    while index < len(layers):
+        layer = layers[index]
+        index += 1
         if not layer.visible:
+            if layer.is_group:
+                while index < len(layers) and layers[index].group_id == layer.group_id:
+                    index += 1
+            continue
+        if layer.is_group:
+            children = []
+            while index < len(layers) and layers[index].group_id == layer.group_id:
+                children.append(layers[index])
+                index += 1
+            if children:
+                group_tile = composite_layers_tile(children, tile_box)
+                group_tile = _apply_group_controls(group_tile, layer, crop_box)
+                if layer.clipping:
+                    group_tile = _clip_to_base(group_tile, result)
+                result = blend_layers(result, group_tile, layer.blend_mode)
             continue
         if layer.adjustment:
             adjusted = apply_adjustment(result, layer.adjustment)
