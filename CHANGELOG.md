@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.20 - 2026-06-28
+
+- Added the complete top-level menu structure for File, Edit, Image, Layer, Type, Select, Filter, View, Window, and Help workflows.
+
 ## PyShop v0.1.19 - 2026-06-28
 
 - Added grouped toolbar slot metadata and UI separators for marquee, lasso, crop, sample, retouch, paint, blur, tone, path, type, shape, hand, and zoom tool groups.
