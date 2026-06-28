@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.34 - 2026-06-28
+
+- Added OpenRaster `.ora` import/export with layer names, pixels, visibility, opacity, supported blend modes, PyShop mask extensions, and compatibility reporting.
+
 ## PyShop v0.1.33 - 2026-06-28
 
 - Moved image open/save/export and effect rasterize work onto status-bar background jobs with progress reporting and cancel requests.

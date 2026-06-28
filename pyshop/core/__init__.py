@@ -38,6 +38,7 @@ from .macros import (
     macro_steps_to_records,
     save_macro_file,
 )
+from .ora import ORA_FILE_SUFFIX, ORAFormatError, ORAImportResult, is_ora_path, load_ora, save_ora
 from .path import selection_mask_bounds
 from .project import (
     PROJECT_FILE_SUFFIX,
@@ -65,6 +66,9 @@ __all__ = [
     "MACRO_FILE_SUFFIX",
     "MAX_DOCUMENT_PIXELS",
     "MacroFormatError",
+    "ORA_FILE_SUFFIX",
+    "ORAFormatError",
+    "ORAImportResult",
     "PairedSnapshotCommand",
     "PSDExportError",
     "PSDImportError",
@@ -96,8 +100,10 @@ __all__ = [
     "iter_intersecting_tile_boxes",
     "iter_tile_boxes",
     "is_project_path",
+    "is_ora_path",
     "load_psd_layers",
     "load_macro_file",
+    "load_ora",
     "load_project",
     "macro_steps_from_records",
     "macro_steps_to_records",
@@ -112,6 +118,7 @@ __all__ = [
     "render_vector_shape_tile",
     "save_flattened_psd",
     "save_macro_file",
+    "save_ora",
     "save_project",
     "selection_mask_bounds",
     "smoothed_brush_point",

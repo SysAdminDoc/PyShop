@@ -28,8 +28,10 @@ from pyshop.core import (
     image_document_layers,
     iter_brush_dabs,
     iter_intersecting_tile_boxes,
+    is_ora_path,
     is_project_path,
     load_macro_file,
+    load_ora,
     load_project,
     MacroFormatError,
     named_background_rgba,
@@ -41,6 +43,7 @@ from pyshop.core import (
     load_psd_layers,
     save_flattened_psd,
     save_macro_file,
+    save_ora,
     save_project,
     smoothed_brush_point,
     TiledCompositeCache,
@@ -1350,6 +1353,7 @@ class ImageEditor(QMainWindow):
         self._act(fm, "&Save", "Ctrl+S", self.save_image)
         self._act(fm, "Save &As...", "Ctrl+Shift+S", self.save_image_as)
         self._act(fm, "E&xport PNG...", "", self.export_png)
+        self._act(fm, "Export OpenRaster...", "", self.export_ora)
         self._act(fm, "Export Flattened PSD...", "", self.export_flattened_psd)
         fm.addSeparator()
         self._act(fm, "E&xit", "Ctrl+Q", self.close)
@@ -1888,7 +1892,7 @@ class ImageEditor(QMainWindow):
 
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Image", "",
-            "PyShop Projects (*.pyshop);;Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)")
+            "PyShop Projects (*.pyshop);;OpenRaster (*.ora);;Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)")
         if path:
             self.start_background_job("Opening image", self.open_document_job(path), self.finish_open_document)
 
@@ -1900,6 +1904,9 @@ class ImageEditor(QMainWindow):
             if is_project_path(path):
                 state = load_project(path)
                 return {"kind": "project", "path": path, "state": state}
+            if is_ora_path(path):
+                result = load_ora(path)
+                return {"kind": "ora", "path": path, "layers": result.layers, "report": result.compatibility_report}
             if path.lower().endswith(".psd"):
                 layers = load_psd_layers(path)
                 return {"kind": "psd", "path": path, "layers": layers}
@@ -1917,15 +1924,17 @@ class ImageEditor(QMainWindow):
             message = f"Opened PyShop project {path}"
         else:
             self.layers = result["layers"]
-            title_prefix = "Imported PSD" if result["kind"] == "psd" else "Imported Image"
+            title_prefix = "Imported PSD" if result["kind"] == "psd" else "Imported OpenRaster" if result["kind"] == "ora" else "Imported Image"
             self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
             self.reset_document_metadata()
             self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
-            message = (
-                "PSD imported as PyShop layers; save as a PyShop project or export a flattened PSD"
-                if result["kind"] == "psd"
-                else "Raster imported; save as a PyShop project or export a flattened image"
-            )
+            if result["kind"] == "psd":
+                message = "PSD imported as PyShop layers; save as a PyShop project or export a flattened PSD"
+            elif result["kind"] == "ora":
+                report_count = len(result.get("report", []))
+                message = f"OpenRaster imported as PyShop layers ({report_count} compatibility notes)"
+            else:
+                message = "Raster imported; save as a PyShop project or export a flattened image"
         self.setWindowTitle(f"{title_prefix} - {os.path.basename(path)}")
         self.statusBar().showMessage(message)
 
@@ -1993,6 +2002,13 @@ class ImageEditor(QMainWindow):
         if path:
             self.export_flattened_image(path, "PNG")
 
+    def export_ora(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Export OpenRaster", "", "OpenRaster (*.ora)")
+        if path:
+            if not path.lower().endswith(".ora"):
+                path += ".ora"
+            self.export_openraster(path)
+
     def export_flattened_psd(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export Flattened PSD", "", "Flattened PSD (*.psd)")
         if path:
@@ -2022,6 +2038,21 @@ class ImageEditor(QMainWindow):
     def finish_export_image(self, result):
         if result is not None:
             self.statusBar().showMessage(f"Exported {result['format']} to {result['path']}")
+
+    def export_openraster(self, path):
+        snapshot = self.project_snapshot_for_worker()
+
+        def job(progress, is_cancelled):
+            progress("Writing OpenRaster", 40)
+            if is_cancelled():
+                return None
+            report = save_ora(path, snapshot["layers"], composite_layers(snapshot["layers"]))
+            return {"path": path, "report": report}
+        self.start_background_job("Exporting OpenRaster", job, self.finish_export_ora)
+
+    def finish_export_ora(self, result):
+        if result is not None:
+            self.statusBar().showMessage(f"Exported OpenRaster to {result['path']} ({len(result['report'])} compatibility notes)")
 
     # Edit ops
     def undo(self):
