@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.11 - 2026-06-28
+
+- Extracted canvas viewport zoom, pan, coordinate conversion, fit, and anchored zoom math into `pyshop.ui.CanvasViewport`.
+
 ## PyShop v0.1.10 - 2026-06-28
 
 - Expanded layer compositing with Photoshop-style blend modes including soft/hard light, linear/pin/vivid light, color compare, arithmetic, and HSL modes.

@@ -30,6 +30,7 @@ from pyshop.core import (
     TiledCompositeCache,
 )
 from pyshop.tools import DEFAULT_TOOL_REGISTRY
+from pyshop.ui import CanvasViewport
 
 
 from PyQt5.QtWidgets import (
@@ -273,8 +274,7 @@ class CanvasWidget(QWidget):
     def __init__(self, editor):
         super().__init__()
         self.editor = editor
-        self.zoom = 1.0
-        self.pan_offset = QPointF(0, 0)
+        self.viewport = CanvasViewport()
         self.panning = False
         self.pan_start = QPointF()
         self.last_pos = None
@@ -297,6 +297,22 @@ class CanvasWidget(QWidget):
         self.march_timer.timeout.connect(self._march_tick)
         self.march_timer.start(100)
 
+    @property
+    def zoom(self):
+        return self.viewport.zoom
+
+    @zoom.setter
+    def zoom(self, value):
+        self.viewport.zoom = value
+
+    @property
+    def pan_offset(self):
+        return self.viewport.pan_offset
+
+    @pan_offset.setter
+    def pan_offset(self, value):
+        self.viewport.pan_offset = value
+
     def _march_tick(self):
         if self.marching_ants_path is not None or self.selection_rect is not None:
             self.marching_offset = (self.marching_offset + 1) % 12
@@ -313,19 +329,16 @@ class CanvasWidget(QWidget):
         self._update_marching_path()
 
     def canvas_to_image(self, pos):
-        return QPointF((pos.x() - self.pan_offset.x()) / self.zoom,
-                       (pos.y() - self.pan_offset.y()) / self.zoom)
+        return self.viewport.canvas_to_image(pos)
 
     def image_to_canvas(self, pos):
-        return QPointF(pos.x() * self.zoom + self.pan_offset.x(),
-                       pos.y() * self.zoom + self.pan_offset.y())
+        return self.viewport.image_to_canvas(pos)
 
     def fit_in_view(self):
         if not self.editor.layers: return
         iw, ih = self.editor.layers[0].image.size
         vw, vh = self.width(), self.height()
-        self.zoom = min(vw / iw, vh / ih) * 0.9
-        self.pan_offset = QPointF((vw - iw * self.zoom) / 2, (vh - ih * self.zoom) / 2)
+        self.viewport.fit((iw, ih), (vw, vh))
         self.update()
 
     def _get_checker(self):
@@ -561,11 +574,9 @@ class CanvasWidget(QWidget):
             self.editor.update_layer_panel()
 
     def wheelEvent(self, event):
-        old_zoom = self.zoom
         factor = 1.15 if event.angleDelta().y() > 0 else 1/1.15
-        self.zoom = max(0.05, min(50.0, self.zoom * factor))
         cp = QPointF(event.pos())
-        self.pan_offset = cp - (cp - self.pan_offset) * (self.zoom / old_zoom)
+        self.viewport.zoom_at(cp, factor)
         self.update()
 
     # Drawing helpers
