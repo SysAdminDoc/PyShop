@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.14 - 2026-06-28
+
+- Added layer mask and clipping-mask metadata, compositor support, layer-panel controls, mask-aware transforms, and an alpha-compositing regression fix.
+
 ## PyShop v0.1.13 - 2026-06-28
 
 - Added dynamic brush settings for pressure, smoothing, spacing, scatter, texture, and color jitter, with toolbar controls and core stroke tests.

@@ -37,6 +37,10 @@ class Layer:
         self.opacity = 255
         self.blend_mode = "Normal"
         self.locked = False
+        self.mask = None
+        self.mask_density = 100
+        self.mask_feather = 0
+        self.clipping = False
         self.image = image.convert("RGBA") if image is not None else Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
     def copy(self):
@@ -52,4 +56,8 @@ def clone_layer_state(layer: Layer) -> Layer:
     snapshot.opacity = layer.opacity
     snapshot.blend_mode = layer.blend_mode
     snapshot.locked = layer.locked
+    snapshot.mask = layer.mask.copy() if layer.mask is not None else None
+    snapshot.mask_density = layer.mask_density
+    snapshot.mask_feather = layer.mask_feather
+    snapshot.clipping = layer.clipping
     return snapshot

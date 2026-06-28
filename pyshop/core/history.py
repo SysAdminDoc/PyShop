@@ -13,6 +13,9 @@ class LayerMetadata:
     opacity: int
     blend_mode: str
     locked: bool
+    mask_density: int
+    mask_feather: int
+    clipping: bool
 
 
 @dataclass
@@ -25,7 +28,16 @@ class LayerPatch:
 
 
 def _metadata(layer) -> LayerMetadata:
-    return LayerMetadata(layer.name, layer.visible, layer.opacity, layer.blend_mode, layer.locked)
+    return LayerMetadata(
+        layer.name,
+        layer.visible,
+        layer.opacity,
+        layer.blend_mode,
+        layer.locked,
+        layer.mask_density,
+        layer.mask_feather,
+        layer.clipping,
+    )
 
 
 def _apply_metadata(layer, metadata: LayerMetadata):
@@ -34,6 +46,15 @@ def _apply_metadata(layer, metadata: LayerMetadata):
     layer.opacity = metadata.opacity
     layer.blend_mode = metadata.blend_mode
     layer.locked = metadata.locked
+    layer.mask_density = metadata.mask_density
+    layer.mask_feather = metadata.mask_feather
+    layer.clipping = metadata.clipping
+
+
+def _same_mask(before, after):
+    if before.mask is None or after.mask is None:
+        return before.mask is None and after.mask is None
+    return before.mask.size == after.mask.size and ImageChops.difference(before.mask, after.mask).getbbox() is None
 
 
 @dataclass
@@ -66,6 +87,8 @@ class DiffHistoryCommand:
         patches = []
         for before, after in zip(before_layers, after_layers):
             if before.image.size != after.image.size:
+                return PairedSnapshotCommand.capture(before_layers, before_index, after_layers, after_index)
+            if not _same_mask(before, after):
                 return PairedSnapshotCommand.capture(before_layers, before_index, after_layers, after_index)
             bbox = ImageChops.difference(before.image, after.image).getbbox()
             patches.append(

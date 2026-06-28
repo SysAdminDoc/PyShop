@@ -13,7 +13,7 @@ from .brush import (
     smoothed_brush_point,
 )
 from .color import named_background_rgba, qcolor_to_rgba
-from .compositor import TiledCompositeCache, composite_layers_tile
+from .compositor import TiledCompositeCache, composite_layers, composite_layers_tile, render_layer_tile
 from .document import create_document_layers, flattened_document_layers, image_document_layers
 from .history import DiffHistoryCommand, HistoryCommand, HistoryManager, PairedSnapshotCommand
 from .layer import Layer, clone_layer_state
@@ -34,6 +34,7 @@ __all__ = [
     "blend_layers",
     "build_marching_ants_path",
     "clone_layer_state",
+    "composite_layers",
     "composite_layers_tile",
     "create_document_layers",
     "erase_brush_dab",
@@ -49,6 +50,7 @@ __all__ = [
     "paint_brush_line",
     "paint_brush_stroke",
     "qcolor_to_rgba",
+    "render_layer_tile",
     "selection_mask_bounds",
     "smoothed_brush_point",
 ]
