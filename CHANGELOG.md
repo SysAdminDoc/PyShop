@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.10 - 2026-06-28
+
+- Expanded layer compositing with Photoshop-style blend modes including soft/hard light, linear/pin/vivid light, color compare, arithmetic, and HSL modes.
+
 ## PyShop v0.1.9 - 2026-06-27
 
 - Added tile-level layer compositing and a canvas tile cache for bounded paint operations.
