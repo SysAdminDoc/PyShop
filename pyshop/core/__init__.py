@@ -26,6 +26,7 @@ from .document import (
     image_document_layers,
     open_raster_image,
 )
+from .effects import apply_effect, effect_label
 from .history import DiffHistoryCommand, HistoryCommand, HistoryManager, PairedSnapshotCommand
 from .layer import Layer, clone_layer_state
 from .macros import (
@@ -75,6 +76,7 @@ __all__ = [
     "TiledCompositeCache",
     "Layer",
     "apply_adjustment",
+    "apply_effect",
     "apply_channel_visibility",
     "apply_retouch_dab",
     "blend_layers",
@@ -84,6 +86,7 @@ __all__ = [
     "composite_layers_tile",
     "create_document_layers",
     "default_channel_visibility",
+    "effect_label",
     "erase_brush_dab",
     "erase_brush_line",
     "erase_brush_stroke",

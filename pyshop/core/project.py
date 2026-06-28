@@ -206,6 +206,7 @@ def _layer_record(layer, image_name: str, mask_name: str | None) -> dict:
         "mask_feather": int(layer.mask_feather),
         "clipping": bool(layer.clipping),
         "adjustment": _jsonable(layer.adjustment),
+        "effect": _jsonable(layer.effect),
         "is_group": bool(layer.is_group),
         "group_id": layer.group_id,
         "group_expanded": bool(layer.group_expanded),
@@ -229,6 +230,7 @@ def _load_layer(archive, record: dict, max_pixels: int) -> Layer:
     layer.mask_feather = max(0, int(record.get("mask_feather", 0)))
     layer.clipping = bool(record.get("clipping", False))
     layer.adjustment = _restore_metadata(record.get("adjustment"))
+    layer.effect = _restore_metadata(record.get("effect"))
     layer.is_group = bool(record.get("is_group", False))
     layer.group_id = record.get("group_id")
     layer.group_expanded = bool(record.get("group_expanded", True))
@@ -283,4 +285,3 @@ def _path_points(value) -> list:
         if isinstance(item, (list, tuple)) and len(item) >= 2:
             points.append((item[0], item[1]))
     return points
-

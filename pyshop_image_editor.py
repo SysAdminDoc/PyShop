@@ -8,7 +8,7 @@ import sys
 import os
 import math
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageOps, ImageChops
+from PIL import Image, ImageDraw, ImageEnhance, ImageOps, ImageChops
 from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
 from pyshop.app_info import app_icon_path
 from pyshop.core import (
@@ -21,6 +21,7 @@ from pyshop.core import (
     composite_layers,
     create_document_layers,
     apply_retouch_dab,
+    effect_label,
     erase_brush_stroke,
     flattened_document_layers,
     image_document_layers,
@@ -1010,11 +1011,12 @@ class LayerPanel(QWidget):
             mask = " [M]" if layer.mask is not None else ""
             clip = " [C]" if layer.clipping else ""
             adjustment = " [A]" if layer.adjustment else ""
+            effect = " [E]" if layer.effect else ""
             group = " [G]" if layer.is_group else ""
             vector = " [V]" if layer.vector_shape else ""
             text = " [T]" if layer.text_item else ""
             prefix = "  " if layer.group_id and not layer.is_group else ""
-            item = QListWidgetItem(f"{prefix}{vis}{layer.name}{lock}{mask}{clip}{adjustment}{group}{vector}{text}")
+            item = QListWidgetItem(f"{prefix}{vis}{layer.name}{lock}{mask}{clip}{adjustment}{effect}{group}{vector}{text}")
             item.setData(Qt.UserRole, idx)
             self.layer_list.addItem(item)
         active = self.editor.active_layer_index
@@ -1399,6 +1401,9 @@ class ImageEditor(QMainWindow):
         self._act(flm, "Posterize...", "", self.posterize)
         self._act(flm, "Solarize...", "", self.solarize)
         self._act(flm, "Pixelate...", "", self.pixelate)
+        flm.addSeparator()
+        self._act(flm, "Edit Active Effect Layer...", "", self.edit_active_effect_layer)
+        self._act(flm, "Rasterize Active Effect Down", "", self.rasterize_active_effect_down)
 
         vm = mb.addMenu("&View")
         self._act(vm, "Fit in &Window", "Ctrl+0", self.canvas.fit_in_view)
@@ -2074,6 +2079,78 @@ class ImageEditor(QMainWindow):
             l.image = func(l.image)
         self.canvas.update()
 
+    def add_effect_layer(self, effect):
+        if not self.layers:
+            return
+        width, height = self.layers[0].image.size
+        layer = Layer(f"{effect_label(effect)} Effect", width, height)
+        layer.effect = effect
+        self.history.save_state(self.layers, self.active_layer_index)
+        insert_at = self.active_layer_index + 1
+        self.layers.insert(insert_at, layer)
+        self.set_active_layer_index(insert_at)
+        self.notify_layers_changed()
+        self.canvas.update()
+        self.statusBar().showMessage(f"Added {effect_label(effect)} effect layer")
+
+    def edit_active_effect_layer(self):
+        layer = self.active_layer()
+        if not layer or not layer.effect:
+            self.statusBar().showMessage("Select an effect layer to edit")
+            return
+        effect = dict(layer.effect)
+        kind = effect.get("type")
+        if kind == "gaussian_blur":
+            value, ok = QInputDialog.getDouble(self, "Edit Gaussian Blur", "Radius:", float(effect.get("radius", 3.0)), 0.1, 100.0, 1)
+            if ok: effect["radius"] = value
+        elif kind == "box_blur":
+            value, ok = QInputDialog.getInt(self, "Edit Box Blur", "Radius:", int(effect.get("radius", 3)), 1, 100)
+            if ok: effect["radius"] = value
+        elif kind == "motion_blur":
+            value, ok = QInputDialog.getInt(self, "Edit Motion Blur", "Size:", int(effect.get("size", 10)), 1, 100)
+            if ok: effect["size"] = value
+        elif kind == "unsharp_mask":
+            dlg = QDialog(self); dlg.setWindowTitle("Edit Unsharp Mask"); form = QFormLayout(dlg)
+            radius = QDoubleSpinBox(); radius.setRange(0.1,100); radius.setValue(float(effect.get("radius", 2.0)))
+            percent = QSpinBox(); percent.setRange(1,500); percent.setValue(int(effect.get("percent", 150)))
+            threshold = QSpinBox(); threshold.setRange(0,255); threshold.setValue(int(effect.get("threshold", 3)))
+            form.addRow("Radius:", radius); form.addRow("Amount %:", percent); form.addRow("Threshold:", threshold)
+            btns = QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
+            btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject); form.addRow(btns)
+            if dlg.exec_() != QDialog.Accepted:
+                return
+            effect.update({"radius": radius.value(), "percent": percent.value(), "threshold": threshold.value()})
+        elif kind == "posterize":
+            value, ok = QInputDialog.getInt(self, "Edit Posterize", "Bits (2-8):", int(effect.get("bits", 4)), 2, 8)
+            if ok: effect["bits"] = value
+        elif kind == "solarize":
+            value, ok = QInputDialog.getInt(self, "Edit Solarize", "Threshold:", int(effect.get("threshold", 128)), 0, 255)
+            if ok: effect["threshold"] = value
+        elif kind == "pixelate":
+            value, ok = QInputDialog.getInt(self, "Edit Pixelate", "Block size:", int(effect.get("block_size", 8)), 2, 100)
+            if ok: effect["block_size"] = value
+        else:
+            self.statusBar().showMessage(f"{effect_label(effect)} has no editable parameters")
+            return
+        if effect == layer.effect:
+            return
+        self.history.save_state(self.layers, self.active_layer_index)
+        layer.effect = effect
+        self.notify_layers_changed()
+        self.canvas.update()
+        self.statusBar().showMessage(f"Updated {effect_label(effect)} effect layer")
+
+    def rasterize_active_effect_down(self):
+        layer = self.active_layer()
+        if not layer or not layer.effect:
+            self.statusBar().showMessage("Select an effect layer to rasterize")
+            return
+        if self.active_layer_index <= 0:
+            self.statusBar().showMessage("Effect layer needs a layer below to rasterize")
+            return
+        self.merge_down()
+        self.statusBar().showMessage("Rasterized effect layer into layer below")
+
     def adjust_brightness_contrast(self):
         dlg = QDialog(self); dlg.setWindowTitle("Brightness / Contrast"); form = QFormLayout(dlg)
         bs = QSlider(Qt.Horizontal); bs.setRange(-100,100); bs.setValue(0)
@@ -2172,20 +2249,17 @@ class ImageEditor(QMainWindow):
     # Filters
     def gaussian_blur(self):
         v, ok = QInputDialog.getDouble(self, "Gaussian Blur", "Radius:", 3.0, 0.1, 100.0, 1)
-        if ok: self._apply_to_active(lambda img: img.filter(ImageFilter.GaussianBlur(v)))
+        if ok: self.add_effect_layer({"type": "gaussian_blur", "radius": v})
 
     def box_blur(self):
         v, ok = QInputDialog.getInt(self, "Box Blur", "Radius:", 3, 1, 100)
-        if ok: self._apply_to_active(lambda img: img.filter(ImageFilter.BoxBlur(v)))
+        if ok: self.add_effect_layer({"type": "box_blur", "radius": v})
 
     def motion_blur(self):
         v, ok = QInputDialog.getInt(self, "Motion Blur", "Size:", 10, 1, 100)
-        if ok:
-            k = [0]*(v*v); c = v//2
-            for i in range(v): k[c*v+i] = 1
-            self._apply_to_active(lambda img: img.filter(ImageFilter.Kernel((v,v), k, scale=v)))
+        if ok: self.add_effect_layer({"type": "motion_blur", "size": v})
 
-    def sharpen(self): self._apply_to_active(lambda img: img.filter(ImageFilter.SHARPEN))
+    def sharpen(self): self.add_effect_layer({"type": "sharpen"})
 
     def unsharp_mask(self):
         dlg = QDialog(self); dlg.setWindowTitle("Unsharp Mask"); form = QFormLayout(dlg)
@@ -2196,35 +2270,23 @@ class ImageEditor(QMainWindow):
         btns = QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject); form.addRow(btns)
         if dlg.exec_() == QDialog.Accepted:
-            self._apply_to_active(lambda img: img.filter(ImageFilter.UnsharpMask(r.value(), pct.value(), th.value())))
+            self.add_effect_layer({"type": "unsharp_mask", "radius": r.value(), "percent": pct.value(), "threshold": th.value()})
 
-    def edge_detect(self): self._apply_to_active(lambda img: img.filter(ImageFilter.FIND_EDGES))
-    def emboss(self): self._apply_to_active(lambda img: img.filter(ImageFilter.EMBOSS))
-    def contour(self): self._apply_to_active(lambda img: img.filter(ImageFilter.CONTOUR))
+    def edge_detect(self): self.add_effect_layer({"type": "edge_detect"})
+    def emboss(self): self.add_effect_layer({"type": "emboss"})
+    def contour(self): self.add_effect_layer({"type": "contour"})
 
     def posterize(self):
         v, ok = QInputDialog.getInt(self, "Posterize", "Levels (2-8):", 4, 2, 8)
-        if ok:
-            def ap(img):
-                r,g,b,a = img.split(); rgb = ImageOps.posterize(Image.merge("RGB",(r,g,b)),v)
-                rr,gg,bb = rgb.split(); return Image.merge("RGBA",(rr,gg,bb,a))
-            self._apply_to_active(ap)
+        if ok: self.add_effect_layer({"type": "posterize", "bits": v})
 
     def solarize(self):
         v, ok = QInputDialog.getInt(self, "Solarize", "Threshold:", 128, 0, 255)
-        if ok:
-            def ap(img):
-                r,g,b,a = img.split(); rgb = ImageOps.solarize(Image.merge("RGB",(r,g,b)),v)
-                rr,gg,bb = rgb.split(); return Image.merge("RGBA",(rr,gg,bb,a))
-            self._apply_to_active(ap)
+        if ok: self.add_effect_layer({"type": "solarize", "threshold": v})
 
     def pixelate(self):
         v, ok = QInputDialog.getInt(self, "Pixelate", "Block size:", 8, 2, 100)
-        if ok:
-            def ap(img):
-                w,h = img.size
-                return img.resize((w//v, h//v), Image.NEAREST).resize((w,h), Image.NEAREST)
-            self._apply_to_active(ap)
+        if ok: self.add_effect_layer({"type": "pixelate", "block_size": v})
 
     # Zoom
     def _zoom(self, f):

@@ -48,6 +48,7 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     layer.mask_feather = 2
     layer.clipping = True
     layer.adjustment = {"type": "invert"}
+    layer.effect = {"type": "gaussian_blur", "radius": 2.0}
     layer.is_group = True
     layer.group_id = "group-1"
     layer.group_expanded = False
@@ -67,6 +68,7 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     assert duplicate.mask_feather == 2
     assert duplicate.clipping is True
     assert duplicate.adjustment == {"type": "invert"}
+    assert duplicate.effect == {"type": "gaussian_blur", "radius": 2.0}
     assert duplicate.is_group is True
     assert duplicate.group_id == "group-1"
     assert duplicate.group_expanded is False
@@ -320,11 +322,13 @@ def test_native_project_round_trip_preserves_document_state(tmp_path):
     shape.clipping = True
     shape.vector_shape = {"type": "rectangle", "box": (0, 0, 2, 2), "fill": (255, 0, 0, 255)}
     shape.text_item = {"text": "Hi", "x": 1, "y": 1, "size": 14, "fill": (1, 2, 3, 255)}
+    effect = Layer("Blur Effect", image=Image.new("RGBA", (3, 2), (0, 0, 0, 0)))
+    effect.effect = {"type": "gaussian_blur", "radius": 1.5}
 
     saved_path = save_project(
         path,
-        [base, group, shape],
-        active_layer_index=2,
+        [base, group, shape, effect],
+        active_layer_index=3,
         selection_mask=Image.new("L", (3, 2), 255),
         channel_visibility={"red": False, "green": True, "blue": False, "alpha": True},
         guides=[("vertical", 1), ("horizontal", 2)],
@@ -336,15 +340,15 @@ def test_native_project_round_trip_preserves_document_state(tmp_path):
     restored = load_project(saved_path)
 
     assert restored.document_size == (3, 2)
-    assert restored.active_layer_index == 2
+    assert restored.active_layer_index == 3
     assert restored.selection_mask.getpixel((0, 0)) == 255
     assert restored.channel_visibility == {"red": False, "green": True, "blue": False, "alpha": True}
     assert restored.guides == [("vertical", 1), ("horizontal", 2)]
     assert restored.current_path == [(0.5, 1.5), (2, 1), (1, 0)]
     assert restored.current_path_closed is True
     assert restored.macro_steps == [("set_tool", ("brush",)), ("set_show_grid", (True,))]
-    assert [layer.name for layer in restored.layers] == ["Base", "Group", "Shape"]
-    restored_base, restored_group, restored_shape = restored.layers
+    assert [layer.name for layer in restored.layers] == ["Base", "Group", "Shape", "Blur Effect"]
+    restored_base, restored_group, restored_shape, restored_effect = restored.layers
     assert restored_base.visible is False
     assert restored_base.opacity == 180
     assert restored_base.blend_mode == "Multiply"
@@ -360,6 +364,7 @@ def test_native_project_round_trip_preserves_document_state(tmp_path):
     assert restored_shape.clipping is True
     assert restored_shape.vector_shape == {"type": "rectangle", "box": (0, 0, 2, 2), "fill": (255, 0, 0, 255)}
     assert restored_shape.text_item == {"text": "Hi", "x": 1, "y": 1, "size": 14, "fill": (1, 2, 3, 255)}
+    assert restored_effect.effect == {"type": "gaussian_blur", "radius": 1.5}
     assert restored_base.image.getpixel((0, 0)) == (10, 20, 30, 255)
 
 
@@ -457,6 +462,17 @@ def test_adjustment_layer_composites_without_mutating_source_layer():
 
     assert result.getpixel((0, 0)) == (0, 255, 255, 255)
     assert base.image.getpixel((0, 0)) == (255, 0, 0, 255)
+
+
+def test_effect_layer_composites_without_mutating_source_layer():
+    base = Layer("Base", image=Image.new("RGBA", (1, 1), (200, 20, 30, 255)))
+    effect = Layer("Solarize Effect", image=Image.new("RGBA", (1, 1), (0, 0, 0, 0)))
+    effect.effect = {"type": "solarize", "threshold": 128}
+
+    result = composite_layers([base, effect])
+
+    assert result.getpixel((0, 0))[0] == 55
+    assert base.image.getpixel((0, 0)) == (200, 20, 30, 255)
 
 
 def test_group_layer_composites_consecutive_children_with_group_opacity_and_visibility():

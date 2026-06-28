@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.32 - 2026-06-28
+
+- Added editable non-destructive effect layers for blur, sharpen, stylize, posterize, solarize, and pixelate filters, including serialization and explicit rasterize-down support.
+
 ## PyShop v0.1.31 - 2026-06-28
 
 - Added QSettings-backed workspace preset persistence plus validated macro save/load/replay support using `.pyshopmacro` files and native project macro storage.
