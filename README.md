@@ -1,6 +1,6 @@
-# PyShop v0.1.26
+# PyShop v0.1.27
 
-![Version](https://img.shields.io/badge/version-v0.1.26-7c3aed)
+![Version](https://img.shields.io/badge/version-v0.1.27-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Language](https://img.shields.io/badge/language-Python-3776AB)
 ![Type](https://img.shields.io/badge/type-Desktop%20App-brightgreen)
@@ -13,7 +13,7 @@ An open-source alternative to Photoshop written in Python. Full-featured image e
 - **Selection Tools** — Rectangular, elliptical, lasso, and magic wand selections
 - **Brush Engine** — Customizable brushes with size, opacity, and hardness controls
 - **Filters & Effects** — Blur, sharpen, color adjustments, transforms, and more
-- **File Support** — Open and save common image formats (PNG, JPG, BMP, TIFF)
+- **File Support** — Open common raster formats plus PSD imports; save raster outputs and explicitly export flattened PSDs
 - **Dark Theme** — Professional dark-themed interface
 - **Undo/Redo** — Full history support
 
@@ -35,7 +35,7 @@ python -m pytest -q
 
 - Python 3.10-3.12
 - PyQt5 5.15.x
-- Pillow 10.x-12.x
+- Pillow 12.2.x
 - numpy 1.24.x-2.x
 
 PyQt5 is available under GPL/commercial licensing from Riverbank. Keep that license boundary in mind before redistributing packaged builds.
@@ -43,6 +43,7 @@ PyQt5 is available under GPL/commercial licensing from Riverbank. Keep that lice
 ## Manual QA Checklist
 
 - Open an existing PNG or JPG and confirm the canvas renders with zoom and pan working.
+- Import a PSD and confirm Save As does not overwrite it; use Export Flattened PSD only when flattened output is intended.
 - Paint with brush and eraser tools, then undo and redo the edits.
 - Add, duplicate, reorder, hide, lock, and merge layers while confirming the canvas composite updates.
 - Create rectangular, elliptical, lasso, and magic wand selections, then clear and invert selections.
@@ -54,7 +55,7 @@ PyQt5 is available under GPL/commercial licensing from Riverbank. Keep that lice
 | Tool | Type | Best For |
 |------|------|----------|
 | **PyShop** (this repo) | Python desktop app | Native desktop image editor with familiar app behavior |
-| [Openshop](https://github.com/SysAdminDoc/Openshop) | Single-file browser app | Zero-install editing in any browser — 33 tools, PSD import, client-side AI, works offline |
+| [Openshop](https://github.com/SysAdminDoc/Openshop) | Single-file browser app | Zero-install editing in any browser with 33 tools, PSD import, and offline use |
 
 If you want an image editor with no Python install required, see [Openshop](https://github.com/SysAdminDoc/Openshop) — a single HTML file that runs entirely in your browser.
 

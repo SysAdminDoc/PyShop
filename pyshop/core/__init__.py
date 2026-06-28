@@ -16,10 +16,18 @@ from .brush import (
 from .channels import apply_channel_visibility
 from .color import named_background_rgba, qcolor_to_rgba
 from .compositor import TiledCompositeCache, composite_layers, composite_layers_tile, render_layer_tile
-from .document import create_document_layers, flattened_document_layers, image_document_layers
+from .document import (
+    ImageOpenError,
+    MAX_DOCUMENT_PIXELS,
+    create_document_layers,
+    flattened_document_layers,
+    image_document_layers,
+    open_raster_image,
+)
 from .history import DiffHistoryCommand, HistoryCommand, HistoryManager, PairedSnapshotCommand
 from .layer import Layer, clone_layer_state
 from .path import selection_mask_bounds
+from .psd import PSDExportError, PSDImportError, load_psd_layers, save_flattened_psd
 from .retouch import apply_retouch_dab
 from .selection import build_marching_ants_path
 from .tiles import DEFAULT_TILE_SIZE, TileBox, iter_intersecting_tile_boxes, iter_tile_boxes
@@ -31,7 +39,11 @@ __all__ = [
     "DiffHistoryCommand",
     "HistoryManager",
     "HistoryCommand",
+    "ImageOpenError",
+    "MAX_DOCUMENT_PIXELS",
     "PairedSnapshotCommand",
+    "PSDExportError",
+    "PSDImportError",
     "BrushSettings",
     "TileBox",
     "TiledCompositeCache",
@@ -53,7 +65,9 @@ __all__ = [
     "iter_brush_dabs",
     "iter_intersecting_tile_boxes",
     "iter_tile_boxes",
+    "load_psd_layers",
     "named_background_rgba",
+    "open_raster_image",
     "paint_brush_dab",
     "paint_brush_line",
     "paint_brush_stroke",
@@ -61,6 +75,7 @@ __all__ = [
     "render_layer_tile",
     "render_text_tile",
     "render_vector_shape_tile",
+    "save_flattened_psd",
     "selection_mask_bounds",
     "smoothed_brush_point",
 ]

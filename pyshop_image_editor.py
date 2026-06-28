@@ -26,9 +26,12 @@ from pyshop.core import (
     iter_brush_dabs,
     iter_intersecting_tile_boxes,
     named_background_rgba,
+    open_raster_image,
     paint_brush_stroke,
     qcolor_to_rgba,
     selection_mask_bounds,
+    load_psd_layers,
+    save_flattened_psd,
     smoothed_brush_point,
     TiledCompositeCache,
 )
@@ -1318,6 +1321,7 @@ class ImageEditor(QMainWindow):
         self._act(fm, "&Save", "Ctrl+S", self.save_image)
         self._act(fm, "Save &As...", "Ctrl+Shift+S", self.save_image_as)
         self._act(fm, "E&xport PNG...", "", self.export_png)
+        self._act(fm, "Export Flattened PSD...", "", self.export_flattened_psd)
         fm.addSeparator()
         self._act(fm, "E&xit", "Ctrl+Q", self.close)
 
@@ -1722,16 +1726,25 @@ class ImageEditor(QMainWindow):
 
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "Open Image", "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)")
+            "Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)")
         if path:
             try:
-                img = Image.open(path).convert("RGBA")
-                self.layers = image_document_layers(img)
-                self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = path
+                if path.lower().endswith(".psd"):
+                    self.layers = load_psd_layers(path)
+                    opened_file_path = None
+                    title_prefix = "Imported PSD"
+                else:
+                    img = open_raster_image(path)
+                    self.layers = image_document_layers(img)
+                    opened_file_path = path
+                    title_prefix = APP_DISPLAY_NAME
+                self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = opened_file_path
                 self.guides.clear()
                 self.current_path = []; self.current_path_closed = False; self.refresh_paths_panel()
                 self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
-                self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
+                self.setWindowTitle(f"{title_prefix} - {os.path.basename(path)}")
+                if opened_file_path is None:
+                    self.statusBar().showMessage("PSD imported as PyShop layers; use Save As or Export Flattened PSD for output")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to open image:\n{e}")
 
@@ -1750,6 +1763,8 @@ class ImageEditor(QMainWindow):
         try:
             c = self.get_composite()
             if c:
+                if path.lower().endswith(".psd"):
+                    raise RuntimeError("Save does not write PSD because it would flatten layer metadata. Use Export Flattened PSD instead.")
                 if path.lower().endswith(('.jpg','.jpeg')): c = c.convert("RGB")
                 c.save(path); self.statusBar().showMessage(f"Saved to {path}")
         except Exception as e:
@@ -1760,6 +1775,19 @@ class ImageEditor(QMainWindow):
         if path:
             c = self.get_composite()
             if c: c.save(path, "PNG"); self.statusBar().showMessage(f"Exported to {path}")
+
+    def export_flattened_psd(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Export Flattened PSD", "", "Flattened PSD (*.psd)")
+        if path:
+            if not path.lower().endswith(".psd"):
+                path += ".psd"
+            try:
+                c = self.get_composite()
+                if c:
+                    save_flattened_psd(path, c)
+                    self.statusBar().showMessage(f"Exported flattened PSD to {path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to export flattened PSD:\n{e}")
 
     # Edit ops
     def undo(self):
