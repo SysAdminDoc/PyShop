@@ -62,6 +62,7 @@ from pyshop.core import (
 )
 from pyshop.tools import CanvasToolEvent, DEFAULT_TOOL_REGISTRY, build_default_tool_handlers
 from pyshop.ui import CanvasViewport, snap_point_to_guides
+from pyshop.plugins import discover_plugins
 from pyshop.windows_shell import install_windows_shell, remove_windows_shell
 
 
@@ -1263,6 +1264,7 @@ class ImageEditor(QMainWindow):
         self.macro_recording = False; self.macro_replaying = False
         self.settings = QSettings("SysAdminDoc", "PyShop")
         self.docks = {}
+        self.plugin_discovery = None
         self.clone_source = None; self.history = HistoryManager()
         self.current_job = None
         self.autosave_timer = QTimer()
@@ -1363,6 +1365,7 @@ class ImageEditor(QMainWindow):
         self.setCentralWidget(self.canvas)
         self.create_menus(); self.create_toolbars(); self.create_panels()
         self.create_job_status_widgets()
+        self.refresh_plugins(silent=True)
         self.restore_workspace_preset(silent=True)
         self.statusBar().showMessage("Ready")
 
@@ -1494,6 +1497,9 @@ class ImageEditor(QMainWindow):
         self._act(amenu, "Save Macro...", "", self.save_macro)
         self._act(amenu, "Load Macro...", "", self.load_macro)
         self._act(amenu, "Clear Macro", "", self.clear_macro)
+
+        self.plugins_menu = mb.addMenu("&Plugins")
+        self.rebuild_plugins_menu()
 
         hm = mb.addMenu("&Help")
         self._act(hm, "About PyShop", "", self.show_about)
@@ -1938,6 +1944,40 @@ class ImageEditor(QMainWindow):
 
     def show_about(self):
         QMessageBox.about(self, "About PyShop", f"{APP_DISPLAY_NAME}\nNative Python image editor.")
+
+    def refresh_plugins(self, silent=False):
+        self.plugin_discovery = discover_plugins()
+        self.rebuild_plugins_menu()
+        if not silent:
+            plugin_count = len(self.plugin_discovery.plugins)
+            error_count = len(self.plugin_discovery.errors)
+            self.statusBar().showMessage(f"Discovered {plugin_count} plugins ({error_count} manifest errors)")
+
+    def rebuild_plugins_menu(self):
+        if not hasattr(self, "plugins_menu"):
+            return
+        self.plugins_menu.clear()
+        self._act(self.plugins_menu, "Refresh Plugins", "", self.refresh_plugins)
+        self.plugins_menu.addSeparator()
+        result = self.plugin_discovery
+        if result is None or not result.plugins:
+            empty = QAction("No plugins discovered", self)
+            empty.setEnabled(False)
+            self.plugins_menu.addAction(empty)
+        else:
+            for manifest in result.plugins:
+                action = QAction(f"{manifest.name} {manifest.version}", self)
+                action.setEnabled(False)
+                detail = manifest.description or manifest.plugin_id
+                if manifest.capabilities:
+                    detail = f"{detail} ({', '.join(manifest.capabilities)})"
+                action.setToolTip(detail)
+                self.plugins_menu.addAction(action)
+        if result is not None and result.errors:
+            self.plugins_menu.addSeparator()
+            errors = QAction(f"{len(result.errors)} manifest errors", self)
+            errors.setEnabled(False)
+            self.plugins_menu.addAction(errors)
 
     # Compositing
     def get_composite(self):
