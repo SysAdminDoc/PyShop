@@ -44,6 +44,7 @@ class Layer:
         self.mask_feather = 0
         self.clipping = False
         self.adjustment = None
+        self.effect = None
         self.is_group = False
         self.group_id = None
         self.group_expanded = True
@@ -69,6 +70,7 @@ def clone_layer_state(layer: Layer) -> Layer:
     snapshot.mask_feather = layer.mask_feather
     snapshot.clipping = layer.clipping
     snapshot.adjustment = copy.deepcopy(layer.adjustment)
+    snapshot.effect = copy.deepcopy(layer.effect)
     snapshot.is_group = layer.is_group
     snapshot.group_id = layer.group_id
     snapshot.group_expanded = layer.group_expanded

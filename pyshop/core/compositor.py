@@ -2,6 +2,7 @@ from PIL import Image, ImageFilter
 
 from .adjustments import apply_adjustment
 from .blend import blend_layers
+from .effects import apply_effect
 from .tiles import TileBox
 from .text import render_text_tile
 from .vector import render_vector_shape_tile
@@ -105,6 +106,11 @@ def composite_layers_tile(layers, tile_box) -> Image.Image:
             adjusted = apply_adjustment(result, layer.adjustment)
             mask = _adjustment_effect_mask(layer, result, crop_box)
             result = Image.composite(adjusted, result, mask)
+            continue
+        if layer.effect:
+            effected = apply_effect(result, layer.effect)
+            mask = _adjustment_effect_mask(layer, result, crop_box)
+            result = Image.composite(effected, result, mask)
             continue
         tile = render_layer_tile(layer, crop_box)
         if layer.clipping:
