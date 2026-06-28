@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.35 - 2026-06-28
+
+- Added pytest-qt GUI workflow and accessibility regressions for no-shortcut actions, icon labels, layer panel operations, macro failures, dock persistence, import state, save filters, and brush flow.
+
 ## PyShop v0.1.34 - 2026-06-28
 
 - Added OpenRaster `.ora` import/export with layer names, pixels, visibility, opacity, supported blend modes, PyShop mask extensions, and compatibility reporting.
