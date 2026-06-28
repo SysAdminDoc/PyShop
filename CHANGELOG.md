@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.39 - 2026-06-28
+
+- Added user-scope Windows shell integration for `.pyshop` associations, Explorer image context menus, and command-line file opening.
+
 ## PyShop v0.1.38 - 2026-06-28
 
 - Added camera RAW import, document-level color profile preservation, export presets, and batch image conversion.
