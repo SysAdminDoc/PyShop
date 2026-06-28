@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "PyShop"
-APP_VERSION = "0.1.21"
+APP_VERSION = "0.1.22"
 APP_DISPLAY_NAME = f"{APP_NAME} v{APP_VERSION}"
 
 

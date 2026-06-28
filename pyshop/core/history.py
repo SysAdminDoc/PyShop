@@ -21,6 +21,7 @@ class LayerMetadata:
     is_group: bool
     group_id: str | None
     group_expanded: bool
+    vector_shape: dict | None
 
 
 @dataclass
@@ -46,6 +47,7 @@ def _metadata(layer) -> LayerMetadata:
         layer.is_group,
         layer.group_id,
         layer.group_expanded,
+        copy.deepcopy(layer.vector_shape),
     )
 
 
@@ -62,6 +64,7 @@ def _apply_metadata(layer, metadata: LayerMetadata):
     layer.is_group = metadata.is_group
     layer.group_id = metadata.group_id
     layer.group_expanded = metadata.group_expanded
+    layer.vector_shape = copy.deepcopy(metadata.vector_shape)
 
 
 def _same_mask(before, after):
