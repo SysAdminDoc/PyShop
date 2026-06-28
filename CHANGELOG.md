@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.26 - 2026-06-28
+
+- Added action macro recording/replay and session workspace presets while preserving the no-keyboard-shortcut action contract.
+
 ## PyShop v0.1.25 - 2026-06-28
 
 - Added a Pen path workflow with point capture, canvas preview, Paths dock actions, and path-to-selection conversion.
