@@ -44,6 +44,7 @@ from pyshop.core import (
     load_psd_layers,
     save_flattened_psd,
     save_image_atomic,
+    save_layered_psd,
     save_macro_file,
     save_ora,
     save_project,
@@ -1365,6 +1366,7 @@ class ImageEditor(QMainWindow):
         self._act(fm, "Save &As...", "Ctrl+Shift+S", self.save_image_as)
         self._act(fm, "E&xport PNG...", "", self.export_png)
         self._act(fm, "Export OpenRaster...", "", self.export_ora)
+        self._act(fm, "Export Layered PSD...", "", self.export_layered_psd)
         self._act(fm, "Export Flattened PSD...", "", self.export_flattened_psd)
         fm.addSeparator()
         self._act(fm, "E&xit", "Ctrl+Q", self.close)
@@ -2065,6 +2067,13 @@ class ImageEditor(QMainWindow):
                 path += ".ora"
             self.export_openraster(path)
 
+    def export_layered_psd(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Export Layered PSD", "", "Layered PSD (*.psd)")
+        if path:
+            if not path.lower().endswith(".psd"):
+                path += ".psd"
+            self.export_psd_layers(path)
+
     def export_flattened_psd(self):
         path, _ = QFileDialog.getSaveFileName(self, "Export Flattened PSD", "", "Flattened PSD (*.psd)")
         if path:
@@ -2109,6 +2118,21 @@ class ImageEditor(QMainWindow):
     def finish_export_ora(self, result):
         if result is not None:
             self.statusBar().showMessage(f"Exported OpenRaster to {result['path']} ({len(result['report'])} compatibility notes)")
+
+    def export_psd_layers(self, path):
+        snapshot = self.project_snapshot_for_worker()
+
+        def job(progress, is_cancelled):
+            progress("Writing layered PSD", 40)
+            if is_cancelled():
+                return None
+            report = save_layered_psd(path, snapshot["layers"])
+            return {"path": path, "report": report}
+        self.start_background_job("Exporting layered PSD", job, self.finish_export_layered_psd)
+
+    def finish_export_layered_psd(self, result):
+        if result is not None:
+            self.statusBar().showMessage(f"Exported layered PSD to {result['path']} ({len(result['report'])} compatibility notes)")
 
     # Edit ops
     def undo(self):

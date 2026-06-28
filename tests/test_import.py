@@ -11,7 +11,7 @@ def test_app_module_imports_without_starting_qapplication():
     package = importlib.import_module("pyshop")
     module = importlib.import_module("pyshop_image_editor")
 
-    assert package.APP_DISPLAY_NAME == "PyShop v0.1.36"
+    assert package.APP_DISPLAY_NAME == "PyShop v0.1.37"
     assert module.APP_DISPLAY_NAME == package.APP_DISPLAY_NAME
     assert module.__version__ == package.__version__
     assert callable(module.main)

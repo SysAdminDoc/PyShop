@@ -49,7 +49,7 @@ from .project import (
     load_project,
     save_project,
 )
-from .psd import PSDExportError, PSDImportError, load_psd_layers, save_flattened_psd
+from .psd import PSDExportError, PSDImportError, load_psd_layers, save_flattened_psd, save_layered_psd
 from .retouch import apply_retouch_dab
 from .safeio import save_image_atomic
 from .selection import build_marching_ants_path
@@ -123,6 +123,7 @@ __all__ = [
     "render_vector_shape_tile",
     "save_flattened_psd",
     "save_image_atomic",
+    "save_layered_psd",
     "save_macro_file",
     "save_ora",
     "save_project",
