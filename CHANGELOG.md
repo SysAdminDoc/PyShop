@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.19 - 2026-06-28
+
+- Added grouped toolbar slot metadata and UI separators for marquee, lasso, crop, sample, retouch, paint, blur, tone, path, type, shape, hand, and zoom tool groups.
+
 ## PyShop v0.1.18 - 2026-06-28
 
 - Added ruler overlays plus Navigator, Histogram, and Info dock panels with composite previews, RGB histograms, and cursor/document readouts.

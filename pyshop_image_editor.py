@@ -263,6 +263,12 @@ def make_tool_icon(tool_id, size=24):
         p.drawRect(QRectF(s*0.15, s*0.7, s*0.7, s*0.15))
         p.drawLine(QPointF(s*0.38, s*0.1), QPointF(s*0.62, s*0.1))
 
+    else:
+        p.setPen(QPen(fg, 1.5))
+        p.setFont(QFont("Segoe UI", max(8, int(s * 0.34)), QFont.Bold))
+        label = tool_id.replace("_tool", "").replace("_", " ")[:2].upper()
+        p.drawText(QRectF(0, 0, s, s), Qt.AlignCenter, label)
+
     p.end()
     return QIcon(pix)
 
@@ -504,7 +510,12 @@ class CanvasWidget(QWidget):
         tool = self.editor.current_tool
         img_pos = self.snap_image_pos(img_pos, tool)
 
-        if event.button() == Qt.MiddleButton or (event.button() == Qt.LeftButton and event.modifiers() & Qt.AltModifier and tool != "clone_stamp"):
+        if event.button() == Qt.LeftButton and tool == "zoom":
+            self.viewport.zoom_at(QPointF(event.pos()), 1.25)
+            self.update()
+            return
+
+        if event.button() == Qt.MiddleButton or (event.button() == Qt.LeftButton and tool == "hand") or (event.button() == Qt.LeftButton and event.modifiers() & Qt.AltModifier and tool != "clone_stamp"):
             self.panning = True
             self.pan_start = QPointF(event.pos()) - self.pan_offset
             self.setCursor(Qt.ClosedHandCursor)
@@ -1291,7 +1302,11 @@ class ImageEditor(QMainWindow):
         self.addToolBar(Qt.LeftToolBarArea, self.tool_bar)
 
         self.tool_group = QActionGroup(self)
+        last_group = None
         for tool in DEFAULT_TOOL_REGISTRY:
+            if last_group is not None and tool.toolbar_group != last_group:
+                self.tool_bar.addSeparator()
+            last_group = tool.toolbar_group
             icon = make_tool_icon(tool.icon_id, 32)
             a = QAction(icon, "", self); a.setToolTip(tool.label); a.setCheckable(True); a.setData(tool.tool_id)
             a.triggered.connect(lambda checked, t=tool.tool_id: self.set_tool(t))
