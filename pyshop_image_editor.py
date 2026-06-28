@@ -8,7 +8,7 @@ import sys
 import os
 import math
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageFont, ImageOps, ImageChops
+from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageOps, ImageChops
 from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
 from pyshop.app_info import app_icon_path
 from pyshop.core import (
@@ -1018,8 +1018,9 @@ class LayerPanel(QWidget):
             adjustment = " [A]" if layer.adjustment else ""
             group = " [G]" if layer.is_group else ""
             vector = " [V]" if layer.vector_shape else ""
+            text = " [T]" if layer.text_item else ""
             prefix = "  " if layer.group_id and not layer.is_group else ""
-            item = QListWidgetItem(f"{prefix}{vis}{layer.name}{lock}{mask}{clip}{adjustment}{group}{vector}")
+            item = QListWidgetItem(f"{prefix}{vis}{layer.name}{lock}{mask}{clip}{adjustment}{group}{vector}{text}")
             item.setData(Qt.UserRole, idx)
             self.layer_list.addItem(item)
         active = self.editor.active_layer_index
@@ -1756,17 +1757,14 @@ class ImageEditor(QMainWindow):
             text = te.toPlainText()
             if not text: return
             self.history.save_state(self.layers, self.active_layer_index)
-            l = self.active_layer()
-            if not l: return
-            draw = ImageDraw.Draw(l.image); sz = fs.value()
-            try:
-                fn = "DejaVuSans-Bold.ttf" if bc.isChecked() else "DejaVuSans.ttf"
-                font = ImageFont.truetype(f"/usr/share/fonts/truetype/dejavu/{fn}", sz)
-            except OSError:
-                try: font = ImageFont.truetype("arial.ttf", sz)
-                except OSError: font = ImageFont.load_default()
+            if not self.layers: return
+            w, h = self.layers[0].image.size
+            l = Layer(f"Text {len(self.layers) + 1}", w, h)
             color = qcolor_to_rgba(self.fg_color, self.brush_opacity)
-            draw.text((x, y), text, fill=color, font=font); self.canvas.update()
+            l.text_item = {"text": text, "x": x, "y": y, "size": fs.value(), "bold": bc.isChecked(), "fill": color}
+            self.layers.append(l)
+            self.set_active_layer_index(len(self.layers) - 1)
+            self.update_layer_panel(); self.canvas.update()
 
     # Adjustments
     def _apply_to_active(self, func):

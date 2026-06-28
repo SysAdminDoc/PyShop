@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.23 - 2026-06-28
+
+- Converted text insertion into non-destructive text layers rendered by the compositor, with text-layer cloning and render tests.
+
 ## PyShop v0.1.22 - 2026-06-28
 
 - Added non-destructive vector rectangle shape layers, compositor rendering, shape-tool drag creation, and vector-layer tests.
