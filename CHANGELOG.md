@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.16 - 2026-06-28
+
+- Added layer group metadata, group-aware compositing, layer-panel grouping controls, and tests for grouped child rendering.
+
 ## PyShop v0.1.15 - 2026-06-28
 
 - Added non-destructive adjustment layer metadata, compositor rendering, layer-panel creation, and core tests for adjustment compositing.
