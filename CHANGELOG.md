@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.30 - 2026-06-28
+
+- Moved canvas mouse behavior behind registered tool-handler objects with focused handler tests for paint, selection, crop, path, text, shape, and retouch workflows.
+
 ## PyShop v0.1.29 - 2026-06-28
 
 - Extracted document state into a core `Document` model with layer, active index, selection, path, channel, guide, macro, file provenance, and dirty-revision ownership.
