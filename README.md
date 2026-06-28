@@ -1,6 +1,6 @@
-# PyShop v0.1.24
+# PyShop v0.1.25
 
-![Version](https://img.shields.io/badge/version-v0.1.24-7c3aed)
+![Version](https://img.shields.io/badge/version-v0.1.25-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Language](https://img.shields.io/badge/language-Python-3776AB)
 ![Type](https://img.shields.io/badge/type-Desktop%20App-brightgreen)

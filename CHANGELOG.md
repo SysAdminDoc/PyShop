@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.25 - 2026-06-28
+
+- Added a Pen path workflow with point capture, canvas preview, Paths dock actions, and path-to-selection conversion.
+
 ## PyShop v0.1.24 - 2026-06-28
 
 - Added channel visibility compositing and a Channels dock for red, green, blue, and alpha channel workflow toggles.
