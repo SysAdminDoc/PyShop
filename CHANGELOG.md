@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.29 - 2026-06-28
+
+- Extracted document state into a core `Document` model with layer, active index, selection, path, channel, guide, macro, file provenance, and dirty-revision ownership.
+
 ## PyShop v0.1.28 - 2026-06-28
 
 - Added native `.pyshop` layered project save/open support with metadata round-tripping for layers, masks, groups, text/vector layers, adjustments, paths, guides, channels, active layer, and macro steps.

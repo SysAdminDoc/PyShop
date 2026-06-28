@@ -13,6 +13,7 @@ from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
 from pyshop.app_info import app_icon_path
 from pyshop.core import (
     BrushSettings,
+    Document,
     HistoryManager,
     Layer,
     apply_channel_visibility,
@@ -333,6 +334,14 @@ class CanvasWidget(QWidget):
     def pan_offset(self, value):
         self.viewport.pan_offset = value
 
+    @property
+    def selection_mask(self):
+        return self.editor.document.selection_mask
+
+    @selection_mask.setter
+    def selection_mask(self, value):
+        self.editor.document.selection_mask = value
+
     def _march_tick(self):
         if self.marching_ants_path is not None or self.selection_rect is not None:
             self.marching_offset = (self.marching_offset + 1) % 12
@@ -346,6 +355,7 @@ class CanvasWidget(QWidget):
 
     def set_selection_mask(self, mask):
         self.selection_mask = mask
+        self.editor.document.mark_dirty()
         self._update_marching_path()
 
     def canvas_to_image(self, pos):
@@ -873,7 +883,7 @@ class CanvasWidget(QWidget):
         except: pass
 
     def clear_selection(self):
-        self.selection_mask = None; self.marching_ants_path = None
+        self.set_selection_mask(None); self.marching_ants_path = None
         self.selection_rect = None; self.update()
 
 
@@ -1281,7 +1291,7 @@ class ImageEditor(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"{APP_DISPLAY_NAME} - Image Editor")
         self.setMinimumSize(1200, 800)
-        self.layers = []; self.active_layer_index = 0
+        self.document = Document()
         self.current_tool = "brush"
         self.fg_color = QColor(255,255,255); self.bg_color = QColor(0,0,0)
         self.brush_size = 10; self.brush_opacity = 255
@@ -1290,13 +1300,80 @@ class ImageEditor(QMainWindow):
         self.brush_pressure_size = False; self.brush_pressure_opacity = False
         self.magic_wand_tolerance = 32; self.magic_wand_contiguous = True; self.magic_wand_sample_all = False
         self.show_grid = False; self.show_guides = True; self.show_rulers = True; self.snap_enabled = True
-        self.grid_size = 64; self.guides = []
-        self.channel_visibility = {"red": True, "green": True, "blue": True, "alpha": True}
-        self.current_path = []; self.current_path_closed = False
-        self.macro_recording = False; self.macro_replaying = False; self.macro_steps = []
+        self.grid_size = 64
+        self.macro_recording = False; self.macro_replaying = False
         self.workspace_preset = None; self.docks = {}
-        self.clone_source = None; self.history = HistoryManager(); self.file_path = None
+        self.clone_source = None; self.history = HistoryManager()
         self.init_ui(); self.showMaximized()
+
+    @property
+    def layers(self):
+        return self.document.layers
+
+    @layers.setter
+    def layers(self, value):
+        self.document.set_layers(value)
+
+    @property
+    def active_layer_index(self):
+        return self.document.active_layer_index
+
+    @active_layer_index.setter
+    def active_layer_index(self, value):
+        self.document.set_active_layer_index(value)
+
+    @property
+    def file_path(self):
+        return self.document.file_path
+
+    @file_path.setter
+    def file_path(self, value):
+        self.document.file_path = value
+
+    @property
+    def guides(self):
+        return self.document.guides
+
+    @guides.setter
+    def guides(self, value):
+        self.document.guides = value
+        self.document.mark_dirty()
+
+    @property
+    def channel_visibility(self):
+        return self.document.channel_visibility
+
+    @channel_visibility.setter
+    def channel_visibility(self, value):
+        self.document.channel_visibility = value
+        self.document.mark_dirty()
+
+    @property
+    def current_path(self):
+        return self.document.current_path
+
+    @current_path.setter
+    def current_path(self, value):
+        self.document.current_path = value
+        self.document.mark_dirty()
+
+    @property
+    def current_path_closed(self):
+        return self.document.current_path_closed
+
+    @current_path_closed.setter
+    def current_path_closed(self, value):
+        self.document.current_path_closed = bool(value)
+        self.document.mark_dirty()
+
+    @property
+    def macro_steps(self):
+        return self.document.macro_steps
+
+    @macro_steps.setter
+    def macro_steps(self, value):
+        self.document.macro_steps = value
+        self.document.mark_dirty()
 
     def active_layer(self):
         if 0 <= self.active_layer_index < len(self.layers): return self.layers[self.active_layer_index]
@@ -1650,13 +1727,14 @@ class ImageEditor(QMainWindow):
         self.fg_color, self.bg_color = self.bg_color, self.fg_color; self.update_color_buttons()
 
     def set_active_layer_index(self, index):
-        if not self.layers:
-            self.active_layer_index = 0
-        else:
-            self.active_layer_index = max(0, min(index, len(self.layers)-1))
+        before = self.document.active_layer_index
+        self.document.set_active_layer_index(index)
+        if self.document.active_layer_index != before:
+            self.document.mark_dirty()
         self.active_layer_changed.emit(self.active_layer_index)
 
     def notify_layers_changed(self):
+        self.document.mark_dirty()
         self.layers_changed.emit()
 
     def update_layer_panel(self): self.notify_layers_changed()
@@ -1680,44 +1758,30 @@ class ImageEditor(QMainWindow):
             self.channel_panel.refresh()
 
     def reset_document_metadata(self):
-        self.guides.clear()
-        self.channel_visibility = {"red": True, "green": True, "blue": True, "alpha": True}
-        self.current_path = []
-        self.current_path_closed = False
+        self.document.reset_metadata()
         self.macro_recording = False
         self.macro_replaying = False
-        self.macro_steps = []
         self.refresh_paths_panel()
         self.refresh_channel_panel()
+        if hasattr(self, "canvas"):
+            self.canvas._update_marching_path()
 
     def apply_project_state(self, state, path):
-        self.layers = state.layers
-        self.set_active_layer_index(state.active_layer_index)
-        self.channel_visibility = state.channel_visibility
-        self.guides = state.guides
-        self.current_path = state.current_path
-        self.current_path_closed = state.current_path_closed
+        self.document.apply_project_state(state, path)
         self.macro_recording = False
         self.macro_replaying = False
-        self.macro_steps = state.macro_steps
         self.history = HistoryManager()
-        self.file_path = path
         self.refresh_paths_panel()
         self.refresh_channel_panel()
-        self.canvas.clear_selection()
-        self.update_layer_panel()
+        self.canvas.selection_rect = None
+        self.canvas._update_marching_path()
+        self.layers_changed.emit()
+        self.active_layer_changed.emit(self.active_layer_index)
+        self.refresh_analysis_panels()
         self.canvas.fit_in_view()
 
     def project_save_kwargs(self):
-        return {
-            "layers": self.layers,
-            "active_layer_index": self.active_layer_index,
-            "channel_visibility": self.channel_visibility,
-            "guides": self.guides,
-            "current_path": self.current_path,
-            "current_path_closed": self.current_path_closed,
-            "macro_steps": self.macro_steps,
-        }
+        return self.document.project_save_kwargs()
 
     def add_path_point(self, x, y):
         self.current_path.append((x, y))
@@ -1826,6 +1890,7 @@ class ImageEditor(QMainWindow):
         try:
             if is_project_path(path):
                 save_project(path, **self.project_save_kwargs())
+                self.document.mark_saved()
                 self.statusBar().showMessage(f"Saved PyShop project to {path}")
                 return True
             c = self.get_composite()

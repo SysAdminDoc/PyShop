@@ -5,6 +5,7 @@ from PIL import Image
 from pyshop.core import (
     BrushSettings,
     DiffHistoryCommand,
+    Document,
     HistoryManager,
     HistoryCommand,
     ImageOpenError,
@@ -170,6 +171,46 @@ def test_document_factory_creates_background_layer():
     assert layers[0].image.getpixel((0, 0)) == (0, 0, 0, 255)
 
 
+def test_document_owns_editor_state_and_revision_metadata():
+    first = Layer("First", image=Image.new("RGBA", (2, 3), (0, 0, 0, 0)))
+    second = Layer("Second", image=Image.new("RGBA", (2, 3), (255, 0, 0, 255)))
+    document = Document([first, second])
+
+    document.set_active_layer_index(9)
+    document.selection_mask = Image.new("L", (2, 3), 255)
+    document.current_path = [(0, 0), (1, 1)]
+    document.current_path_closed = True
+    document.channel_visibility = {"red": False, "green": True, "blue": True, "alpha": True}
+    document.guides = [("vertical", 1)]
+    document.macro_steps = [("set_tool", ("brush",))]
+    document.file_path = "work.pyshop"
+    document.source_path = "import.png"
+    document.mark_dirty()
+
+    assert document.dimensions == (2, 3)
+    assert document.active_layer_index == 1
+    assert document.has_unsaved_changes is True
+    kwargs = document.project_save_kwargs()
+    assert kwargs["layers"] == [first, second]
+    assert kwargs["active_layer_index"] == 1
+    assert kwargs["selection_mask"].getpixel((0, 0)) == 255
+    assert kwargs["current_path"] == [(0, 0), (1, 1)]
+    assert kwargs["guides"] == [("vertical", 1)]
+    assert kwargs["macro_steps"] == [("set_tool", ("brush",))]
+
+    document.mark_saved()
+    assert document.has_unsaved_changes is False
+    document.reset_metadata()
+
+    assert document.selection_mask is None
+    assert document.current_path == []
+    assert document.current_path_closed is False
+    assert document.channel_visibility == {"red": True, "green": True, "blue": True, "alpha": True}
+    assert document.guides == []
+    assert document.macro_steps == []
+    assert document.has_unsaved_changes is True
+
+
 def test_brush_helpers_paint_and_erase_pixels():
     image = Image.new("RGBA", (5, 5), (0, 0, 0, 0))
 
@@ -284,6 +325,7 @@ def test_native_project_round_trip_preserves_document_state(tmp_path):
         path,
         [base, group, shape],
         active_layer_index=2,
+        selection_mask=Image.new("L", (3, 2), 255),
         channel_visibility={"red": False, "green": True, "blue": False, "alpha": True},
         guides=[("vertical", 1), ("horizontal", 2)],
         current_path=[(0.5, 1.5), (2, 1), (1, 0)],
@@ -295,6 +337,7 @@ def test_native_project_round_trip_preserves_document_state(tmp_path):
 
     assert restored.document_size == (3, 2)
     assert restored.active_layer_index == 2
+    assert restored.selection_mask.getpixel((0, 0)) == 255
     assert restored.channel_visibility == {"red": False, "green": True, "blue": False, "alpha": True}
     assert restored.guides == [("vertical", 1), ("horizontal", 2)]
     assert restored.current_path == [(0.5, 1.5), (2, 1), (1, 0)]
