@@ -780,6 +780,7 @@ class LayerPanel(QWidget):
         layout.addLayout(vl)
 
         ml = QHBoxLayout()
+        self.adjustment_btn = QPushButton("Adj"); self.adjustment_btn.clicked.connect(self.add_adjustment_layer); ml.addWidget(self.adjustment_btn)
         self.mask_btn = QPushButton("Mask"); self.mask_btn.clicked.connect(self.add_layer_mask); ml.addWidget(self.mask_btn)
         ml.addWidget(QLabel("Density:"))
         self.mask_density_slider = QSlider(Qt.Horizontal); self.mask_density_slider.setRange(0, 100); self.mask_density_slider.setValue(100)
@@ -799,7 +800,8 @@ class LayerPanel(QWidget):
             lock = " [L]" if layer.locked else ""
             mask = " [M]" if layer.mask is not None else ""
             clip = " [C]" if layer.clipping else ""
-            item = QListWidgetItem(f"{vis}{layer.name}{lock}{mask}{clip}")
+            adjustment = " [A]" if layer.adjustment else ""
+            item = QListWidgetItem(f"{vis}{layer.name}{lock}{mask}{clip}{adjustment}")
             item.setData(Qt.UserRole, idx)
             self.layer_list.addItem(item)
         active = self.editor.active_layer_index
@@ -870,6 +872,40 @@ class LayerPanel(QWidget):
             layer.mask = Image.new("L", layer.image.size, 255)
         layer.mask_density = 100
         layer.mask_feather = 0
+        self.editor.notify_layers_changed(); self.editor.canvas.update()
+
+    def add_adjustment_layer(self):
+        if not self.editor.layers: return
+        dlg = QDialog(self); dlg.setWindowTitle("New Adjustment Layer"); form = QFormLayout(dlg)
+        kind = QComboBox(); kind.addItems(["Brightness/Contrast", "Hue/Saturation", "Invert", "Grayscale"])
+        form.addRow("Type:", kind)
+        brightness = QSpinBox(); brightness.setRange(-100, 100); form.addRow("Brightness:", brightness)
+        contrast = QSpinBox(); contrast.setRange(-100, 100); form.addRow("Contrast:", contrast)
+        hue = QSpinBox(); hue.setRange(-180, 180); form.addRow("Hue:", hue)
+        saturation = QSpinBox(); saturation.setRange(-100, 100); form.addRow("Saturation:", saturation)
+        lightness = QSpinBox(); lightness.setRange(-100, 100); form.addRow("Lightness:", lightness)
+        btns = QDialogButtonBox(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject); form.addRow(btns)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        selected = kind.currentText()
+        if selected == "Brightness/Contrast":
+            adjustment = {"type": "brightness_contrast", "brightness": brightness.value(), "contrast": contrast.value()}
+        elif selected == "Hue/Saturation":
+            adjustment = {"type": "hue_saturation", "hue": hue.value(), "saturation": saturation.value(), "lightness": lightness.value()}
+        elif selected == "Invert":
+            adjustment = {"type": "invert"}
+        else:
+            adjustment = {"type": "grayscale"}
+
+        w, h = self.editor.layers[0].image.size
+        layer = Layer(f"{selected} Adjustment", w, h)
+        layer.adjustment = adjustment
+        self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
+        insert_at = self.editor.active_layer_index + 1
+        self.editor.layers.insert(insert_at, layer)
+        self.editor.set_active_layer_index(insert_at)
         self.editor.notify_layers_changed(); self.editor.canvas.update()
 
     def on_mask_density_change(self, value):

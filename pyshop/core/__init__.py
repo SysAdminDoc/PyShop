@@ -1,5 +1,6 @@
 """Core document, layer, selection, history, and rendering models."""
 
+from .adjustments import apply_adjustment
 from .blend import blend_layers
 from .brush import (
     BrushSettings,
@@ -31,6 +32,7 @@ __all__ = [
     "TileBox",
     "TiledCompositeCache",
     "Layer",
+    "apply_adjustment",
     "blend_layers",
     "build_marching_ants_path",
     "clone_layer_state",
