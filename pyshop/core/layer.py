@@ -1,3 +1,5 @@
+import copy
+
 from PIL import Image
 
 
@@ -41,6 +43,7 @@ class Layer:
         self.mask_density = 100
         self.mask_feather = 0
         self.clipping = False
+        self.adjustment = None
         self.image = image.convert("RGBA") if image is not None else Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
     def copy(self):
@@ -60,4 +63,5 @@ def clone_layer_state(layer: Layer) -> Layer:
     snapshot.mask_density = layer.mask_density
     snapshot.mask_feather = layer.mask_feather
     snapshot.clipping = layer.clipping
+    snapshot.adjustment = copy.deepcopy(layer.adjustment)
     return snapshot

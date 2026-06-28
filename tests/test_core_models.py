@@ -9,6 +9,7 @@ from pyshop.core import (
     Layer,
     blend_layers,
     build_marching_ants_path,
+    composite_layers,
     composite_layers_tile,
     create_document_layers,
     erase_brush_dab,
@@ -35,6 +36,7 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     layer.mask_density = 50
     layer.mask_feather = 2
     layer.clipping = True
+    layer.adjustment = {"type": "invert"}
 
     duplicate = layer.copy()
     layer.image.putpixel((0, 0), (255, 0, 0, 255))
@@ -48,6 +50,7 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     assert duplicate.mask_density == 50
     assert duplicate.mask_feather == 2
     assert duplicate.clipping is True
+    assert duplicate.adjustment == {"type": "invert"}
     assert duplicate.mask.getpixel((0, 0)) == 128
     assert duplicate.image.getpixel((0, 0)) == (10, 20, 30, 255)
 
@@ -262,3 +265,14 @@ def test_composite_layers_tile_applies_clipping_to_underlying_alpha():
 
     assert tile.getpixel((0, 0))[3] == 0
     assert tile.getpixel((1, 0)) == (255, 0, 0, 255)
+
+
+def test_adjustment_layer_composites_without_mutating_source_layer():
+    base = Layer("Base", image=Image.new("RGBA", (1, 1), (255, 0, 0, 255)))
+    adjustment = Layer("Invert Adjustment", image=Image.new("RGBA", (1, 1), (0, 0, 0, 0)))
+    adjustment.adjustment = {"type": "invert"}
+
+    result = composite_layers([base, adjustment])
+
+    assert result.getpixel((0, 0)) == (0, 255, 255, 255)
+    assert base.image.getpixel((0, 0)) == (255, 0, 0, 255)

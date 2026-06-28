@@ -1,5 +1,6 @@
 from PIL import Image, ImageFilter
 
+from .adjustments import apply_adjustment
 from .blend import blend_layers
 from .tiles import TileBox
 
@@ -41,6 +42,16 @@ def _clip_to_base(image: Image.Image, base: Image.Image) -> Image.Image:
     return Image.merge("RGBA", (red, green, blue, alpha))
 
 
+def _adjustment_effect_mask(layer, base: Image.Image, crop_box):
+    mask = Image.new("L", base.size, max(0, min(255, layer.opacity)))
+    layer_mask = _effective_mask(layer, crop_box)
+    if layer_mask is not None:
+        mask = Image.composite(mask, Image.new("L", mask.size, 0), layer_mask)
+    if layer.clipping:
+        mask = Image.composite(mask, Image.new("L", mask.size, 0), base.getchannel("A"))
+    return mask
+
+
 def render_layer_tile(layer, crop_box) -> Image.Image:
     image = layer.image.crop(crop_box)
     image = _apply_mask(image, layer, crop_box)
@@ -59,6 +70,11 @@ def composite_layers_tile(layers, tile_box) -> Image.Image:
     crop_box = tile_box.as_crop_box()
     for layer in layers:
         if not layer.visible:
+            continue
+        if layer.adjustment:
+            adjusted = apply_adjustment(result, layer.adjustment)
+            mask = _adjustment_effect_mask(layer, result, crop_box)
+            result = Image.composite(adjusted, result, mask)
             continue
         tile = render_layer_tile(layer, crop_box)
         if layer.clipping:

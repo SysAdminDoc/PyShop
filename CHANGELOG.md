@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.15 - 2026-06-28
+
+- Added non-destructive adjustment layer metadata, compositor rendering, layer-panel creation, and core tests for adjustment compositing.
+
 ## PyShop v0.1.14 - 2026-06-28
 
 - Added layer mask and clipping-mask metadata, compositor support, layer-panel controls, mask-aware transforms, and an alpha-compositing regression fix.
