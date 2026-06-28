@@ -22,6 +22,7 @@ from .path import selection_mask_bounds
 from .retouch import apply_retouch_dab
 from .selection import build_marching_ants_path
 from .tiles import DEFAULT_TILE_SIZE, TileBox, iter_intersecting_tile_boxes, iter_tile_boxes
+from .text import render_text_tile
 from .vector import render_vector_shape_tile
 
 __all__ = [
@@ -56,6 +57,7 @@ __all__ = [
     "paint_brush_stroke",
     "qcolor_to_rgba",
     "render_layer_tile",
+    "render_text_tile",
     "render_vector_shape_tile",
     "selection_mask_bounds",
     "smoothed_brush_point",

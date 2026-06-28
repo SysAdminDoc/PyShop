@@ -42,6 +42,7 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     layer.group_id = "group-1"
     layer.group_expanded = False
     layer.vector_shape = {"type": "rectangle", "box": (0, 0, 2, 2), "fill": (1, 2, 3, 255)}
+    layer.text_item = {"text": "Hi", "x": 0, "y": 0, "size": 12, "fill": (255, 255, 255, 255)}
 
     duplicate = layer.copy()
     layer.image.putpixel((0, 0), (255, 0, 0, 255))
@@ -60,6 +61,7 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     assert duplicate.group_id == "group-1"
     assert duplicate.group_expanded is False
     assert duplicate.vector_shape == {"type": "rectangle", "box": (0, 0, 2, 2), "fill": (1, 2, 3, 255)}
+    assert duplicate.text_item == {"text": "Hi", "x": 0, "y": 0, "size": 12, "fill": (255, 255, 255, 255)}
     assert duplicate.mask.getpixel((0, 0)) == 128
     assert duplicate.image.getpixel((0, 0)) == (10, 20, 30, 255)
 
@@ -334,3 +336,13 @@ def test_vector_shape_layer_renders_without_raster_pixels():
 
     assert result.getpixel((1, 1)) == (255, 0, 0, 255)
     assert layer.image.getpixel((1, 1))[3] == 0
+
+
+def test_text_layer_renders_without_raster_pixels():
+    layer = Layer("Text", image=Image.new("RGBA", (80, 30), (0, 0, 0, 0)))
+    layer.text_item = {"text": "Hi", "x": 2, "y": 2, "size": 16, "fill": (255, 255, 255, 255)}
+
+    result = composite_layers([layer])
+
+    assert result.getchannel("A").getbbox() is not None
+    assert layer.image.getchannel("A").getbbox() is None

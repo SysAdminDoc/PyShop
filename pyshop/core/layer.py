@@ -48,6 +48,7 @@ class Layer:
         self.group_id = None
         self.group_expanded = True
         self.vector_shape = None
+        self.text_item = None
         self.image = image.convert("RGBA") if image is not None else Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
     def copy(self):
@@ -72,4 +73,5 @@ def clone_layer_state(layer: Layer) -> Layer:
     snapshot.group_id = layer.group_id
     snapshot.group_expanded = layer.group_expanded
     snapshot.vector_shape = copy.deepcopy(layer.vector_shape)
+    snapshot.text_item = copy.deepcopy(layer.text_item)
     return snapshot
