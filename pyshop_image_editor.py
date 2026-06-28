@@ -30,7 +30,7 @@ from pyshop.core import (
     TiledCompositeCache,
 )
 from pyshop.tools import DEFAULT_TOOL_REGISTRY
-from pyshop.ui import CanvasViewport
+from pyshop.ui import CanvasViewport, snap_point_to_guides
 
 
 from PyQt5.QtWidgets import (
@@ -289,6 +289,7 @@ class CanvasWidget(QWidget):
         self._checker_tile = None
         self.tile_cache = TiledCompositeCache()
         self.tablet_pressure = 1.0
+        self._snap_tools = {"move", "select_rect", "select_ellipse", "crop", "text", "fill", "magic_wand"}
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
@@ -335,6 +336,13 @@ class CanvasWidget(QWidget):
     def image_to_canvas(self, pos):
         return self.viewport.image_to_canvas(pos)
 
+    def snap_image_pos(self, pos, tool):
+        if not self.editor.snap_enabled or tool not in self._snap_tools:
+            return pos
+        threshold = max(2.0, 8.0 / max(self.zoom, 0.01))
+        x, y = snap_point_to_guides(pos.x(), pos.y(), self.editor.grid_size, self.editor.guides, threshold)
+        return QPointF(x, y)
+
     def fit_in_view(self):
         if not self.editor.layers: return
         iw, ih = self.editor.layers[0].image.size
@@ -353,6 +361,30 @@ class CanvasWidget(QWidget):
             tp.fillRect(cs, cs, cs, cs, QColor("#404040"))
             tp.end()
         return self._checker_tile
+
+    def _draw_grid_and_guides(self, painter, doc_width, doc_height, visible_bounds):
+        left, top, right, bottom = visible_bounds
+        if self.editor.show_grid and self.editor.grid_size > 0:
+            pen = QPen(QColor(255, 255, 255, 35), 1.0)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
+            grid = self.editor.grid_size
+            start_x = (left // grid) * grid
+            start_y = (top // grid) * grid
+            for x in range(start_x, right + 1, grid):
+                painter.drawLine(QPointF(x, 0), QPointF(x, doc_height))
+            for y in range(start_y, bottom + 1, grid):
+                painter.drawLine(QPointF(0, y), QPointF(doc_width, y))
+
+        if self.editor.show_guides and self.editor.guides:
+            pen = QPen(QColor("#00aaff"), 1.0, Qt.DashLine)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
+            for orientation, value in self.editor.guides:
+                if orientation == "vertical" and left <= value <= right:
+                    painter.drawLine(QPointF(value, 0), QPointF(value, doc_height))
+                elif orientation == "horizontal" and top <= value <= bottom:
+                    painter.drawLine(QPointF(0, value), QPointF(doc_width, value))
 
     def update(self, *args, **kwargs):
         self.tile_cache.invalidate()
@@ -395,6 +427,8 @@ class CanvasWidget(QWidget):
                 tile_data = tile_image.tobytes("raw", "RGBA")
                 qimg = QImage(tile_data, box.width, box.height, QImage.Format_RGBA8888)
                 painter.drawImage(box.x, box.y, qimg)
+
+            self._draw_grid_and_guides(painter, doc_width, doc_height, visible_bounds)
 
         # ---- Marching Ants ----
         if self.marching_ants_path is not None:
@@ -443,6 +477,7 @@ class CanvasWidget(QWidget):
     def mousePressEvent(self, event):
         img_pos = self.canvas_to_image(QPointF(event.pos()))
         tool = self.editor.current_tool
+        img_pos = self.snap_image_pos(img_pos, tool)
 
         if event.button() == Qt.MiddleButton or (event.button() == Qt.LeftButton and event.modifiers() & Qt.AltModifier and tool != "clone_stamp"):
             self.panning = True
@@ -499,6 +534,8 @@ class CanvasWidget(QWidget):
 
     def mouseMoveEvent(self, event):
         img_pos = self.canvas_to_image(QPointF(event.pos()))
+        tool = self.editor.current_tool
+        img_pos = self.snap_image_pos(img_pos, tool)
         ix, iy = int(img_pos.x()), int(img_pos.y())
 
         if self.editor.layers:
@@ -512,7 +549,6 @@ class CanvasWidget(QWidget):
         if self.panning:
             self.pan_offset = QPointF(event.pos()) - self.pan_start; self.update(); return
 
-        tool = self.editor.current_tool
         if self.drawing and event.buttons() & Qt.LeftButton:
             if tool == "brush":
                 self.last_pos = self._draw_brush_line(self.last_pos, img_pos); self.update()
@@ -997,6 +1033,8 @@ class ImageEditor(QMainWindow):
         self.brush_texture = 0; self.brush_color_jitter = 0
         self.brush_pressure_size = False; self.brush_pressure_opacity = False
         self.magic_wand_tolerance = 32; self.magic_wand_contiguous = True; self.magic_wand_sample_all = False
+        self.show_grid = False; self.show_guides = True; self.snap_enabled = True
+        self.grid_size = 64; self.guides = []
         self.clone_source = None; self.history = HistoryManager(); self.file_path = None
         self.init_ui(); self.showMaximized()
 
@@ -1097,10 +1135,26 @@ class ImageEditor(QMainWindow):
         self._act(vm, "Zoom &In", "Ctrl+=", lambda: self._zoom(1.25))
         self._act(vm, "Zoom &Out", "Ctrl+-", lambda: self._zoom(0.8))
         self._act(vm, "&Actual Size", "Ctrl+1", lambda: self._set_zoom(1.0))
+        vm.addSeparator()
+        self.grid_action = self._check_act(vm, "Show Grid", self.show_grid, self.set_show_grid)
+        self.guides_action = self._check_act(vm, "Show Guides", self.show_guides, self.set_show_guides)
+        self.snap_action = self._check_act(vm, "Snap", self.snap_enabled, self.set_snap_enabled)
+        self._act(vm, "Grid Size...", "", self.set_grid_size)
+        self._act(vm, "Add Vertical Guide...", "", lambda: self.add_guide("vertical"))
+        self._act(vm, "Add Horizontal Guide...", "", lambda: self.add_guide("horizontal"))
+        self._act(vm, "Clear Guides", "", self.clear_guides)
 
     def _act(self, menu, name, shortcut, cb):
         a = QAction(name, self)
         a.triggered.connect(cb); menu.addAction(a); return a
+
+    def _check_act(self, menu, name, checked, cb):
+        action = QAction(name, self)
+        action.setCheckable(True)
+        action.setChecked(checked)
+        action.toggled.connect(cb)
+        menu.addAction(action)
+        return action
 
     def create_toolbars(self):
         self.tool_bar = QToolBar("Tools")
@@ -1241,6 +1295,7 @@ class ImageEditor(QMainWindow):
             w, h = ws.value(), hs.value()
             self.layers = create_document_layers(w, h, named_background_rgba(bg.currentText()))
             self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
+            self.guides.clear()
             self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
             self.setWindowTitle(f"{APP_DISPLAY_NAME} - Untitled")
 
@@ -1252,6 +1307,7 @@ class ImageEditor(QMainWindow):
                 img = Image.open(path).convert("RGBA")
                 self.layers = image_document_layers(img)
                 self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = path
+                self.guides.clear()
                 self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
                 self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
             except Exception as e:
@@ -1618,6 +1674,38 @@ class ImageEditor(QMainWindow):
     # Zoom
     def _zoom(self, f): self.canvas.zoom *= f; self.canvas.update()
     def _set_zoom(self, v): self.canvas.zoom = v; self.canvas.update()
+
+    def set_show_grid(self, checked):
+        self.show_grid = checked
+        self.canvas.update()
+
+    def set_show_guides(self, checked):
+        self.show_guides = checked
+        self.canvas.update()
+
+    def set_snap_enabled(self, checked):
+        self.snap_enabled = checked
+
+    def set_grid_size(self):
+        value, ok = QInputDialog.getInt(self, "Grid Size", "Pixels:", self.grid_size, 1, 2000, 1)
+        if ok:
+            self.grid_size = value
+            self.canvas.update()
+
+    def add_guide(self, orientation):
+        if not self.layers:
+            return
+        width, height = self.layers[0].image.size
+        maximum = width if orientation == "vertical" else height
+        label = "X:" if orientation == "vertical" else "Y:"
+        value, ok = QInputDialog.getInt(self, "Add Guide", label, maximum // 2, 0, maximum, 1)
+        if ok:
+            self.guides.append((orientation, value))
+            self.canvas.update()
+
+    def clear_guides(self):
+        self.guides.clear()
+        self.canvas.update()
 
 # ---- Main -----------------------------------------------------------------
 def main():

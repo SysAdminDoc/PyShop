@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.17 - 2026-06-28
+
+- Added grid and guide overlays, snap-to-grid/guide math, View menu controls, and tests for snapping behavior.
+
 ## PyShop v0.1.16 - 2026-06-28
 
 - Added layer group metadata, group-aware compositing, layer-panel grouping controls, and tests for grouped child rendering.
