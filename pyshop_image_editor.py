@@ -15,6 +15,7 @@ from pyshop.core import (
     BrushSettings,
     HistoryManager,
     Layer,
+    apply_channel_visibility,
     build_marching_ants_path,
     composite_layers,
     create_document_layers,
@@ -950,6 +951,27 @@ class InfoPanel(QWidget):
             self.color_label.setText(f"Color: {red}, {green}, {blue}, {alpha}")
 
 
+class ChannelPanel(QWidget):
+    def __init__(self, editor):
+        super().__init__()
+        self.editor = editor
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        self.checks = {}
+        for key, label in [("red", "Red"), ("green", "Green"), ("blue", "Blue"), ("alpha", "Alpha")]:
+            check = QCheckBox(label)
+            check.setChecked(True)
+            check.toggled.connect(lambda value, channel=key: self.set_channel(channel, value))
+            self.checks[key] = check
+            layout.addWidget(check)
+        layout.addStretch(1)
+
+    def set_channel(self, channel, visible):
+        self.editor.channel_visibility[channel] = visible
+        self.editor.canvas.update()
+        self.editor.refresh_analysis_panels()
+
+
 # ---- Layer Panel -----------------------------------------------------------
 class LayerPanel(QWidget):
     def __init__(self, editor):
@@ -1215,6 +1237,7 @@ class ImageEditor(QMainWindow):
         self.magic_wand_tolerance = 32; self.magic_wand_contiguous = True; self.magic_wand_sample_all = False
         self.show_grid = False; self.show_guides = True; self.show_rulers = True; self.snap_enabled = True
         self.grid_size = 64; self.guides = []
+        self.channel_visibility = {"red": True, "green": True, "blue": True, "alpha": True}
         self.clone_source = None; self.history = HistoryManager(); self.file_path = None
         self.init_ui(); self.showMaximized()
 
@@ -1466,9 +1489,12 @@ class ImageEditor(QMainWindow):
         self.info_panel = InfoPanel(self)
         infod = QDockWidget("Info", self); infod.setWidget(self.info_panel); infod.setMinimumWidth(220)
         self.addDockWidget(Qt.RightDockWidgetArea, infod)
+        self.channel_panel = ChannelPanel(self)
+        cd = QDockWidget("Channels", self); cd.setWidget(self.channel_panel); cd.setMinimumWidth(220)
+        self.addDockWidget(Qt.RightDockWidgetArea, cd)
         self.layers_changed.connect(self.refresh_analysis_panels)
         self.active_layer_changed.connect(lambda _index: self.refresh_analysis_panels())
-        for dock in [ld, hd, nd, hgd, infod]:
+        for dock in [ld, hd, nd, hgd, infod, cd]:
             self.window_menu.addAction(dock.toggleViewAction())
 
     def set_tool(self, tool):
@@ -1524,7 +1550,10 @@ class ImageEditor(QMainWindow):
 
     # Compositing
     def get_composite(self):
-        return composite_layers(self.layers)
+        composite = composite_layers(self.layers)
+        if composite is not None:
+            return apply_channel_visibility(composite, self.channel_visibility)
+        return None
 
     # File ops
     def new_image(self):

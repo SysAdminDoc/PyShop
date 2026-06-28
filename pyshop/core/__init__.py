@@ -13,6 +13,7 @@ from .brush import (
     paint_brush_stroke,
     smoothed_brush_point,
 )
+from .channels import apply_channel_visibility
 from .color import named_background_rgba, qcolor_to_rgba
 from .compositor import TiledCompositeCache, composite_layers, composite_layers_tile, render_layer_tile
 from .document import create_document_layers, flattened_document_layers, image_document_layers
@@ -36,6 +37,7 @@ __all__ = [
     "TiledCompositeCache",
     "Layer",
     "apply_adjustment",
+    "apply_channel_visibility",
     "apply_retouch_dab",
     "blend_layers",
     "build_marching_ants_path",

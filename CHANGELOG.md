@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.24 - 2026-06-28
+
+- Added channel visibility compositing and a Channels dock for red, green, blue, and alpha channel workflow toggles.
+
 ## PyShop v0.1.23 - 2026-06-28
 
 - Converted text insertion into non-destructive text layers rendered by the compositor, with text-layer cloning and render tests.
