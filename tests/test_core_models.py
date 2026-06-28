@@ -32,6 +32,7 @@ from pyshop.core import (
     paint_brush_stroke,
     save_project,
     save_flattened_psd,
+    save_layered_psd,
     selection_mask_bounds,
     smoothed_brush_point,
 )
@@ -298,6 +299,22 @@ def test_flattened_psd_save_and_load_round_trip(tmp_path):
 
     assert layers[0].image.size == (2, 2)
     assert layers[0].image.getpixel((0, 0))[3] == 255
+
+
+def test_layered_psd_export_reopens_pixel_layers(tmp_path):
+    path = tmp_path / "layers.psd"
+    base = Layer("Base", image=Image.new("RGBA", (2, 2), (255, 0, 0, 255)))
+    top = Layer("Top", image=Image.new("RGBA", (2, 2), (0, 0, 255, 255)))
+    top.opacity = 128
+    top.mask = Image.new("L", (2, 2), 255)
+
+    report = save_layered_psd(path, [base, top])
+    layers = load_psd_layers(path)
+
+    assert report == []
+    assert [layer.name for layer in layers[:2]] == ["Base", "Top"]
+    assert layers[0].image.size == (2, 2)
+    assert layers[1].opacity == 128
 
 
 def test_native_project_round_trip_preserves_document_state(tmp_path):

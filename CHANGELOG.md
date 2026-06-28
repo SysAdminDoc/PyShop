@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.37 - 2026-06-28
+
+- Added practical layered PSD export for pixel, text, and vector layers with opacity, visibility, supported blend modes, masks, and compatibility notes for unsupported PyShop metadata.
+
 ## PyShop v0.1.36 - 2026-06-28
 
 - Added timestamped job error logs, atomic raster/PSD save writes, and autosave recovery project creation/restoration for unsaved work.
