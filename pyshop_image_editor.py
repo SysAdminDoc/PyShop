@@ -40,7 +40,7 @@ from pyshop.core import (
     smoothed_brush_point,
     TiledCompositeCache,
 )
-from pyshop.tools import DEFAULT_TOOL_REGISTRY
+from pyshop.tools import CanvasToolEvent, DEFAULT_TOOL_REGISTRY, build_default_tool_handlers
 from pyshop.ui import CanvasViewport, snap_point_to_guides
 
 
@@ -306,9 +306,9 @@ class CanvasWidget(QWidget):
         self._lasso_points = []
         self._checker_tile = None
         self.tile_cache = TiledCompositeCache()
+        self.tool_handlers = build_default_tool_handlers()
         self.tablet_pressure = 1.0
         self._snap_tools = {"move", "select_rect", "select_ellipse", "crop", "text", "fill", "magic_wand"}
-        self._retouch_tools = {"blur", "sharpen_tool", "healing", "dodge", "burn", "sponge"}
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
@@ -370,6 +370,18 @@ class CanvasWidget(QWidget):
         threshold = max(2.0, 8.0 / max(self.zoom, 0.01))
         x, y = snap_point_to_guides(pos.x(), pos.y(), self.editor.grid_size, self.editor.guides, threshold)
         return QPointF(x, y)
+
+    def _tool_event(self, event, image_pos):
+        return CanvasToolEvent(
+            image_pos=image_pos,
+            widget_pos=QPointF(event.pos()),
+            button=event.button() if hasattr(event, "button") else None,
+            buttons=event.buttons() if hasattr(event, "buttons") else None,
+            modifiers=event.modifiers() if hasattr(event, "modifiers") else QApplication.keyboardModifiers(),
+        )
+
+    def _active_tool_handler(self):
+        return self.tool_handlers.get(self.editor.current_tool)
 
     def fit_in_view(self):
         if not self.editor.layers: return
@@ -568,58 +580,9 @@ class CanvasWidget(QWidget):
 
         if event.button() == Qt.LeftButton:
             if not self.editor.layers: return
-            ix, iy = int(img_pos.x()), int(img_pos.y())
-            layer = self.editor.active_layer()
-            if layer is None: return
-            w, h = layer.image.size
-
-            if tool == "move":
-                self.last_pos = img_pos; self.drawing = True
-            elif tool == "brush":
-                self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
-                self.drawing = True; self.last_pos = img_pos
-                self._draw_brush(ix, iy); self.update()
-            elif tool == "eraser":
-                self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
-                self.drawing = True; self.last_pos = img_pos
-                self._draw_eraser(ix, iy); self.update()
-            elif tool == "eyedropper":
-                if 0 <= ix < w and 0 <= iy < h:
-                    comp = self.editor.get_composite()
-                    if comp:
-                        r, g, b, a = comp.getpixel((ix, iy))
-                        self.color_picked.emit(QColor(r, g, b))
-            elif tool == "fill":
-                self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
-                self._flood_fill(ix, iy); self.update()
-            elif tool == "magic_wand":
-                self._magic_wand_select(ix, iy); self.update()
-            elif tool in ("select_rect", "select_ellipse"):
-                self.selection_start = img_pos
-                self.selection_rect = None; self.set_selection_mask(None)
-                self.drawing = True
-            elif tool == "crop":
-                self.selection_start = img_pos; self.crop_rect = None; self.drawing = True
-            elif tool == "shape":
-                self.selection_start = img_pos; self.shape_rect = None; self.drawing = True
-            elif tool == "pen":
-                self.editor.add_path_point(ix, iy)
-            elif tool == "text":
-                self.editor.insert_text_at(ix, iy)
-            elif tool == "lasso":
-                self._lasso_points = [img_pos]; self.drawing = True
-            elif tool == "clone_stamp":
-                if event.modifiers() & Qt.AltModifier:
-                    self.editor.clone_source = (ix, iy)
-                    self.editor.statusBar().showMessage(f"Clone source set to ({ix}, {iy})")
-                elif self.editor.clone_source:
-                    self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
-                    self.drawing = True; self.last_pos = img_pos
-                    self._draw_clone_stamp(ix, iy)
-            elif tool in self._retouch_tools:
-                self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
-                self.drawing = True; self.last_pos = img_pos
-                self._draw_retouch(ix, iy, tool); self.update()
+            handler = self._active_tool_handler()
+            if handler and handler.press(self, self._tool_event(event, img_pos)):
+                return
 
     def mouseMoveEvent(self, event):
         img_pos = self.canvas_to_image(QPointF(event.pos()))
@@ -640,77 +603,19 @@ class CanvasWidget(QWidget):
             self.pan_offset = QPointF(event.pos()) - self.pan_start; self.update(); return
 
         if self.drawing and event.buttons() & Qt.LeftButton:
-            if tool == "brush":
-                self.last_pos = self._draw_brush_line(self.last_pos, img_pos); self.update()
-            elif tool == "eraser":
-                self.last_pos = self._draw_eraser_line(self.last_pos, img_pos); self.update()
-            elif tool == "move":
-                dx, dy = img_pos.x() - self.last_pos.x(), img_pos.y() - self.last_pos.y()
-                layer = self.editor.active_layer()
-                if layer and not layer.locked:
-                    self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
-                    new_img = Image.new("RGBA", layer.image.size, (0,0,0,0))
-                    new_img.paste(layer.image, (int(dx), int(dy)))
-                    layer.image = new_img; self.last_pos = img_pos; self.update()
-            elif tool in ("select_rect", "select_ellipse") and self.selection_start:
-                x1, y1 = self.selection_start.x(), self.selection_start.y()
-                x2, y2 = img_pos.x(), img_pos.y()
-                self.selection_rect = QRectF(min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1))
-                self.update()
-            elif tool == "crop" and self.selection_start:
-                x1, y1 = self.selection_start.x(), self.selection_start.y()
-                x2, y2 = img_pos.x(), img_pos.y()
-                self.crop_rect = QRectF(min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1))
-                self.update()
-            elif tool == "shape" and self.selection_start:
-                x1, y1 = self.selection_start.x(), self.selection_start.y()
-                x2, y2 = img_pos.x(), img_pos.y()
-                self.shape_rect = QRectF(min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1))
-                self.update()
-            elif tool == "lasso":
-                self._lasso_points.append(img_pos); self.update()
-            elif tool == "clone_stamp":
-                self._draw_clone_stamp(ix, iy); self.last_pos = img_pos; self.update()
-            elif tool in self._retouch_tools:
-                self.last_pos = self._draw_retouch_line(self.last_pos, img_pos, tool); self.update()
+            handler = self._active_tool_handler()
+            if handler and handler.move(self, self._tool_event(event, img_pos)):
+                return
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MiddleButton or (self.panning and event.button() == Qt.LeftButton):
             self.panning = False; self.setCursor(Qt.ArrowCursor); return
 
         if event.button() == Qt.LeftButton:
-            tool = self.editor.current_tool
-
-            if tool in ("select_rect", "select_ellipse") and self.selection_rect:
-                layer = self.editor.active_layer()
-                if layer:
-                    w, h = layer.image.size
-                    mask = Image.new("L", (w, h), 0)
-                    draw = ImageDraw.Draw(mask)
-                    r = self.selection_rect
-                    box = (int(r.x()), int(r.y()), int(r.x()+r.width()), int(r.y()+r.height()))
-                    if tool == "select_rect":
-                        draw.rectangle(box, fill=255)
-                    else:
-                        draw.ellipse(box, fill=255)
-                    self.set_selection_mask(mask)
-                    self.selection_rect = None
-
-            elif tool == "lasso" and len(self._lasso_points) > 2:
-                layer = self.editor.active_layer()
-                if layer:
-                    w, h = layer.image.size
-                    mask = Image.new("L", (w, h), 0)
-                    draw = ImageDraw.Draw(mask)
-                    pts = [(int(pt.x()), int(pt.y())) for pt in self._lasso_points]
-                    draw.polygon(pts, fill=255)
-                    self.set_selection_mask(mask)
-                    self.selection_rect = None
-                self._lasso_points = []
-
-            elif tool == "shape" and self.shape_rect:
-                self.editor.add_shape_layer(self.shape_rect)
-                self.shape_rect = None
+            handler = self._active_tool_handler()
+            if handler:
+                img_pos = self.snap_image_pos(self.canvas_to_image(QPointF(event.pos())), self.editor.current_tool)
+                handler.release(self, self._tool_event(event, img_pos))
 
             self.drawing = False
             self.update()
