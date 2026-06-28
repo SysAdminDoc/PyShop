@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 
 from pyshop.core import (
+    BrushSettings,
     DiffHistoryCommand,
     HistoryManager,
     HistoryCommand,
@@ -11,12 +12,16 @@ from pyshop.core import (
     composite_layers_tile,
     create_document_layers,
     erase_brush_dab,
+    erase_brush_stroke,
+    iter_brush_dabs,
     iter_intersecting_tile_boxes,
     iter_tile_boxes,
     named_background_rgba,
     paint_brush_dab,
     paint_brush_line,
+    paint_brush_stroke,
     selection_mask_bounds,
+    smoothed_brush_point,
 )
 
 
@@ -133,6 +138,43 @@ def test_brush_helpers_paint_and_erase_pixels():
 
     erase_brush_dab(image, 2, 2, 1)
     assert image.getpixel((2, 2))[3] == 0
+
+
+def test_brush_settings_apply_pressure_and_spacing():
+    settings = BrushSettings(size=20, opacity=200, spacing=50, pressure_size=True, pressure_opacity=True)
+
+    assert settings.effective_size(0.5) == 10
+    assert settings.effective_opacity(0.5) == 100
+    assert settings.spacing_pixels(0.5) == 5
+
+
+def test_iter_brush_dabs_respects_spacing():
+    settings = BrushSettings(size=10, spacing=50)
+
+    dabs = list(iter_brush_dabs(0, 0, 10, 0, settings))
+
+    assert [(x, y, size) for x, y, size, _index in dabs] == [(0, 0, 10), (5, 0, 10), (10, 0, 10)]
+
+
+def test_iter_brush_dabs_emits_one_dab_for_clicks():
+    assert list(iter_brush_dabs(2, 3, 2, 3, BrushSettings(size=4))) == [(2, 3, 4, 0)]
+
+
+def test_smoothed_brush_point_filters_toward_previous_point():
+    assert smoothed_brush_point((0, 0), (10, 0), 50) == (5, 0)
+
+
+def test_dynamic_brush_stroke_uses_pressure_opacity_and_eraser_stroke():
+    image = Image.new("RGBA", (3, 1), (0, 0, 0, 0))
+    settings = BrushSettings(size=1, opacity=200, spacing=100, pressure_opacity=True)
+
+    paint_brush_stroke(image, 1, 0, 1, 0, settings, (255, 0, 0, 255), pressure=0.5)
+
+    assert image.getpixel((1, 0)) == (255, 0, 0, 100)
+
+    erase_brush_stroke(image, 1, 0, 1, 0, settings)
+
+    assert image.getpixel((1, 0))[3] == 0
 
 
 def test_selection_mask_bounds_returns_cropped_extent():

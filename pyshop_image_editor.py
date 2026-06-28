@@ -12,21 +12,21 @@ from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageFont, ImageOps
 from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
 from pyshop.app_info import app_icon_path
 from pyshop.core import (
+    BrushSettings,
     HistoryManager,
     Layer,
     blend_layers,
     build_marching_ants_path,
     create_document_layers,
-    erase_brush_dab,
-    erase_brush_line,
+    erase_brush_stroke,
     flattened_document_layers,
     image_document_layers,
     iter_intersecting_tile_boxes,
     named_background_rgba,
-    paint_brush_dab,
-    paint_brush_line,
+    paint_brush_stroke,
     qcolor_to_rgba,
     selection_mask_bounds,
+    smoothed_brush_point,
     TiledCompositeCache,
 )
 from pyshop.tools import DEFAULT_TOOL_REGISTRY
@@ -288,6 +288,7 @@ class CanvasWidget(QWidget):
         self._lasso_points = []
         self._checker_tile = None
         self.tile_cache = TiledCompositeCache()
+        self.tablet_pressure = 1.0
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
@@ -514,9 +515,9 @@ class CanvasWidget(QWidget):
         tool = self.editor.current_tool
         if self.drawing and event.buttons() & Qt.LeftButton:
             if tool == "brush":
-                self._draw_brush_line(self.last_pos, img_pos); self.last_pos = img_pos; self.update()
+                self.last_pos = self._draw_brush_line(self.last_pos, img_pos); self.update()
             elif tool == "eraser":
-                self._draw_eraser_line(self.last_pos, img_pos); self.last_pos = img_pos; self.update()
+                self.last_pos = self._draw_eraser_line(self.last_pos, img_pos); self.update()
             elif tool == "move":
                 dx, dy = img_pos.x() - self.last_pos.x(), img_pos.y() - self.last_pos.y()
                 layer = self.editor.active_layer()
@@ -584,30 +585,46 @@ class CanvasWidget(QWidget):
         self.viewport.zoom_at(cp, factor)
         self.update()
 
+    def tabletEvent(self, event):
+        pressure = float(event.pressure())
+        self.tablet_pressure = 1.0 if pressure <= 0 else max(0.01, min(1.0, pressure))
+        event.ignore()
+
     # Drawing helpers
     def _draw_brush(self, x, y):
         layer = self.editor.active_layer()
         if not layer or layer.locked: return
         color = qcolor_to_rgba(self.editor.fg_color, self.editor.brush_opacity)
-        paint_brush_dab(layer.image, x, y, self.editor.brush_size, color)
+        settings = self.editor.brush_settings()
+        paint_brush_stroke(layer.image, x, y, x, y, settings, color, self.tablet_pressure)
 
     def _draw_brush_line(self, p1, p2):
         layer = self.editor.active_layer()
-        if not layer or layer.locked: return
+        if not layer or layer.locked: return p2
+        settings = self.editor.brush_settings()
+        p2 = self._smooth_brush_point(p1, p2, settings)
         color = qcolor_to_rgba(self.editor.fg_color, self.editor.brush_opacity)
         x1, y1, x2, y2 = int(p1.x()), int(p1.y()), int(p2.x()), int(p2.y())
-        paint_brush_line(layer.image, x1, y1, x2, y2, self.editor.brush_size, color)
+        paint_brush_stroke(layer.image, x1, y1, x2, y2, settings, color, self.tablet_pressure)
+        return p2
 
     def _draw_eraser(self, x, y):
         layer = self.editor.active_layer()
         if not layer or layer.locked: return
-        erase_brush_dab(layer.image, x, y, self.editor.brush_size)
+        erase_brush_stroke(layer.image, x, y, x, y, self.editor.brush_settings(), self.tablet_pressure)
 
     def _draw_eraser_line(self, p1, p2):
         layer = self.editor.active_layer()
-        if not layer or layer.locked: return
+        if not layer or layer.locked: return p2
+        settings = self.editor.brush_settings()
+        p2 = self._smooth_brush_point(p1, p2, settings)
         x1, y1, x2, y2 = int(p1.x()), int(p1.y()), int(p2.x()), int(p2.y())
-        erase_brush_line(layer.image, x1, y1, x2, y2, self.editor.brush_size)
+        erase_brush_stroke(layer.image, x1, y1, x2, y2, settings, self.tablet_pressure)
+        return p2
+
+    def _smooth_brush_point(self, p1, p2, settings):
+        x, y = smoothed_brush_point((p1.x(), p1.y()), (p2.x(), p2.y()), settings.smoothing)
+        return QPointF(x, y)
 
     def _flood_fill(self, x, y):
         layer = self.editor.active_layer()
@@ -866,6 +883,9 @@ class ImageEditor(QMainWindow):
         self.current_tool = "brush"
         self.fg_color = QColor(255,255,255); self.bg_color = QColor(0,0,0)
         self.brush_size = 10; self.brush_opacity = 255
+        self.brush_spacing = 25; self.brush_smoothing = 0; self.brush_scatter = 0
+        self.brush_texture = 0; self.brush_color_jitter = 0
+        self.brush_pressure_size = False; self.brush_pressure_opacity = False
         self.magic_wand_tolerance = 32; self.magic_wand_contiguous = True; self.magic_wand_sample_all = False
         self.clone_source = None; self.history = HistoryManager(); self.file_path = None
         self.init_ui(); self.showMaximized()
@@ -873,6 +893,19 @@ class ImageEditor(QMainWindow):
     def active_layer(self):
         if 0 <= self.active_layer_index < len(self.layers): return self.layers[self.active_layer_index]
         return None
+
+    def brush_settings(self):
+        return BrushSettings(
+            size=self.brush_size,
+            opacity=self.brush_opacity,
+            spacing=self.brush_spacing,
+            smoothing=self.brush_smoothing,
+            scatter=self.brush_scatter,
+            texture=self.brush_texture,
+            color_jitter=self.brush_color_jitter,
+            pressure_size=self.brush_pressure_size,
+            pressure_opacity=self.brush_pressure_opacity,
+        )
 
     def init_ui(self):
         self.canvas = CanvasWidget(self)
@@ -996,6 +1029,37 @@ class ImageEditor(QMainWindow):
         self.opacity_spin.setSuffix("%")
         self.opacity_spin.valueChanged.connect(lambda v: setattr(self, 'brush_opacity', int(v*255/100)))
         self.options_bar.addWidget(self.opacity_spin)
+        self.options_bar.addWidget(QLabel("  Spacing: "))
+        self.spacing_spin = QSpinBox(); self.spacing_spin.setRange(1,300); self.spacing_spin.setValue(self.brush_spacing)
+        self.spacing_spin.setSuffix("%")
+        self.spacing_spin.valueChanged.connect(lambda v: setattr(self, 'brush_spacing', v))
+        self.options_bar.addWidget(self.spacing_spin)
+        self.options_bar.addWidget(QLabel("  Smooth: "))
+        self.smoothing_spin = QSpinBox(); self.smoothing_spin.setRange(0,95); self.smoothing_spin.setValue(self.brush_smoothing)
+        self.smoothing_spin.setSuffix("%")
+        self.smoothing_spin.valueChanged.connect(lambda v: setattr(self, 'brush_smoothing', v))
+        self.options_bar.addWidget(self.smoothing_spin)
+        self.options_bar.addWidget(QLabel("  Scatter: "))
+        self.scatter_spin = QSpinBox(); self.scatter_spin.setRange(0,300); self.scatter_spin.setValue(self.brush_scatter)
+        self.scatter_spin.setSuffix("%")
+        self.scatter_spin.valueChanged.connect(lambda v: setattr(self, 'brush_scatter', v))
+        self.options_bar.addWidget(self.scatter_spin)
+        self.options_bar.addWidget(QLabel("  Texture: "))
+        self.texture_spin = QSpinBox(); self.texture_spin.setRange(0,100); self.texture_spin.setValue(self.brush_texture)
+        self.texture_spin.setSuffix("%")
+        self.texture_spin.valueChanged.connect(lambda v: setattr(self, 'brush_texture', v))
+        self.options_bar.addWidget(self.texture_spin)
+        self.options_bar.addWidget(QLabel("  Jitter: "))
+        self.jitter_spin = QSpinBox(); self.jitter_spin.setRange(0,100); self.jitter_spin.setValue(self.brush_color_jitter)
+        self.jitter_spin.setSuffix("%")
+        self.jitter_spin.valueChanged.connect(lambda v: setattr(self, 'brush_color_jitter', v))
+        self.options_bar.addWidget(self.jitter_spin)
+        self.pressure_size_check = QCheckBox("Pressure Size")
+        self.pressure_size_check.toggled.connect(lambda v: setattr(self, 'brush_pressure_size', v))
+        self.options_bar.addWidget(self.pressure_size_check)
+        self.pressure_opacity_check = QCheckBox("Pressure Opacity")
+        self.pressure_opacity_check.toggled.connect(lambda v: setattr(self, 'brush_pressure_opacity', v))
+        self.options_bar.addWidget(self.pressure_opacity_check)
         self.options_bar.addSeparator()
         self.options_bar.addWidget(QLabel("  Tolerance: "))
         self.tolerance_spin = QSpinBox(); self.tolerance_spin.setRange(0,255); self.tolerance_spin.setValue(self.magic_wand_tolerance)
