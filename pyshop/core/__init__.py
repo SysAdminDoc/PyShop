@@ -17,9 +17,11 @@ from .channels import apply_channel_visibility
 from .color import named_background_rgba, qcolor_to_rgba
 from .compositor import TiledCompositeCache, composite_layers, composite_layers_tile, render_layer_tile
 from .document import (
+    Document,
     ImageOpenError,
     MAX_DOCUMENT_PIXELS,
     create_document_layers,
+    default_channel_visibility,
     flattened_document_layers,
     image_document_layers,
     open_raster_image,
@@ -45,6 +47,7 @@ from .vector import render_vector_shape_tile
 __all__ = [
     "DEFAULT_TILE_SIZE",
     "DiffHistoryCommand",
+    "Document",
     "HistoryManager",
     "HistoryCommand",
     "ImageOpenError",
@@ -68,6 +71,7 @@ __all__ = [
     "composite_layers",
     "composite_layers_tile",
     "create_document_layers",
+    "default_channel_visibility",
     "erase_brush_dab",
     "erase_brush_line",
     "erase_brush_stroke",

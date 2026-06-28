@@ -25,6 +25,7 @@ class ProjectFormatError(RuntimeError):
 class ProjectState:
     layers: list
     active_layer_index: int
+    selection_mask: object | None
     channel_visibility: dict
     guides: list
     current_path: list
@@ -37,6 +38,7 @@ def save_project(
     path,
     layers,
     active_layer_index: int = 0,
+    selection_mask=None,
     channel_visibility: dict | None = None,
     guides=None,
     current_path=None,
@@ -53,6 +55,8 @@ def save_project(
         _validate_pixel_count(layer.image.width, layer.image.height, max_pixels, f"Layer '{layer.name}'")
         if layer.mask is not None:
             _validate_pixel_count(layer.mask.width, layer.mask.height, max_pixels, f"Mask for '{layer.name}'")
+    if selection_mask is not None:
+        _validate_pixel_count(selection_mask.width, selection_mask.height, max_pixels, "Selection mask")
 
     path = Path(path)
     if path.suffix.lower() != PROJECT_FILE_SUFFIX:
@@ -71,11 +75,17 @@ def save_project(
                 archive.writestr(mask_name, _image_png_bytes(layer.mask, "L"))
             layer_records.append(_layer_record(layer, image_name, mask_name))
 
+        selection_name = None
+        if selection_mask is not None:
+            selection_name = "selection/selection.png"
+            archive.writestr(selection_name, _image_png_bytes(selection_mask, "L"))
+
         manifest = {
             "format": "pyshop-project",
             "format_version": PROJECT_FORMAT_VERSION,
             "document": {"width": width, "height": height},
             "active_layer_index": int(active_layer_index),
+            "selection_mask": selection_name,
             "channel_visibility": _channel_visibility(channel_visibility),
             "guides": _guides(guides),
             "current_path": _path_points(current_path),
@@ -110,6 +120,9 @@ def load_project(path, max_pixels: int = MAX_DOCUMENT_PIXELS) -> ProjectState:
             return ProjectState(
                 layers=layers,
                 active_layer_index=active,
+                selection_mask=_load_image(archive, manifest["selection_mask"], "L", max_pixels)
+                if manifest.get("selection_mask")
+                else None,
                 channel_visibility=_channel_visibility(manifest.get("channel_visibility")),
                 guides=_guides(manifest.get("guides")),
                 current_path=_path_points(manifest.get("current_path")),
