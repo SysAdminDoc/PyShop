@@ -18,9 +18,11 @@ from pyshop.core import (
     build_marching_ants_path,
     composite_layers,
     create_document_layers,
+    apply_retouch_dab,
     erase_brush_stroke,
     flattened_document_layers,
     image_document_layers,
+    iter_brush_dabs,
     iter_intersecting_tile_boxes,
     named_background_rgba,
     paint_brush_stroke,
@@ -296,6 +298,7 @@ class CanvasWidget(QWidget):
         self.tile_cache = TiledCompositeCache()
         self.tablet_pressure = 1.0
         self._snap_tools = {"move", "select_rect", "select_ellipse", "crop", "text", "fill", "magic_wand"}
+        self._retouch_tools = {"blur", "sharpen_tool", "healing", "dodge", "burn", "sponge"}
 
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
@@ -567,6 +570,10 @@ class CanvasWidget(QWidget):
                     self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
                     self.drawing = True; self.last_pos = img_pos
                     self._draw_clone_stamp(ix, iy)
+            elif tool in self._retouch_tools:
+                self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
+                self.drawing = True; self.last_pos = img_pos
+                self._draw_retouch(ix, iy, tool); self.update()
 
     def mouseMoveEvent(self, event):
         img_pos = self.canvas_to_image(QPointF(event.pos()))
@@ -613,6 +620,8 @@ class CanvasWidget(QWidget):
                 self._lasso_points.append(img_pos); self.update()
             elif tool == "clone_stamp":
                 self._draw_clone_stamp(ix, iy); self.last_pos = img_pos; self.update()
+            elif tool in self._retouch_tools:
+                self.last_pos = self._draw_retouch_line(self.last_pos, img_pos, tool); self.update()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MiddleButton or (self.panning and event.button() == Qt.LeftButton):
@@ -698,6 +707,20 @@ class CanvasWidget(QWidget):
     def _smooth_brush_point(self, p1, p2, settings):
         x, y = smoothed_brush_point((p1.x(), p1.y()), (p2.x(), p2.y()), settings.smoothing)
         return QPointF(x, y)
+
+    def _draw_retouch(self, x, y, mode):
+        layer = self.editor.active_layer()
+        if not layer or layer.locked: return
+        apply_retouch_dab(layer.image, x, y, self.editor.brush_size, mode)
+
+    def _draw_retouch_line(self, p1, p2, mode):
+        layer = self.editor.active_layer()
+        if not layer or layer.locked: return p2
+        settings = self.editor.brush_settings()
+        p2 = self._smooth_brush_point(p1, p2, settings)
+        for x, y, size, _index in iter_brush_dabs(int(p1.x()), int(p1.y()), int(p2.x()), int(p2.y()), settings, self.tablet_pressure):
+            apply_retouch_dab(layer.image, x, y, size, mode)
+        return p2
 
     def _flood_fill(self, x, y):
         layer = self.editor.active_layer()

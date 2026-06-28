@@ -7,6 +7,7 @@ from pyshop.core import (
     HistoryManager,
     HistoryCommand,
     Layer,
+    apply_retouch_dab,
     blend_layers,
     build_marching_ants_path,
     composite_layers,
@@ -202,6 +203,27 @@ def test_dynamic_brush_stroke_uses_pressure_opacity_and_eraser_stroke():
     erase_brush_stroke(image, 1, 0, 1, 0, settings)
 
     assert image.getpixel((1, 0))[3] == 0
+
+
+def test_retouch_dab_applies_tonal_adjustments():
+    image = Image.new("RGBA", (5, 5), (100, 100, 100, 255))
+
+    apply_retouch_dab(image, 2, 2, 3, "dodge")
+
+    assert image.getpixel((2, 2))[0] > 100
+
+    apply_retouch_dab(image, 2, 2, 3, "burn")
+
+    assert image.getpixel((2, 2))[0] < 118
+
+
+def test_retouch_dab_blurs_local_patch():
+    image = Image.new("RGBA", (7, 7), (0, 0, 0, 255))
+    image.putpixel((3, 3), (255, 255, 255, 255))
+
+    apply_retouch_dab(image, 3, 3, 7, "blur")
+
+    assert 0 < image.getpixel((2, 3))[0] < 255
 
 
 def test_selection_mask_bounds_returns_cropped_extent():

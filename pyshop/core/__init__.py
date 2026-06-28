@@ -19,6 +19,7 @@ from .document import create_document_layers, flattened_document_layers, image_d
 from .history import DiffHistoryCommand, HistoryCommand, HistoryManager, PairedSnapshotCommand
 from .layer import Layer, clone_layer_state
 from .path import selection_mask_bounds
+from .retouch import apply_retouch_dab
 from .selection import build_marching_ants_path
 from .tiles import DEFAULT_TILE_SIZE, TileBox, iter_intersecting_tile_boxes, iter_tile_boxes
 
@@ -33,6 +34,7 @@ __all__ = [
     "TiledCompositeCache",
     "Layer",
     "apply_adjustment",
+    "apply_retouch_dab",
     "blend_layers",
     "build_marching_ants_path",
     "clone_layer_state",

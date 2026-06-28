@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.21 - 2026-06-28
+
+- Added core retouch dab operations and canvas workflows for healing, blur, sharpen, dodge, burn, and sponge toolbar tools.
+
 ## PyShop v0.1.20 - 2026-06-28
 
 - Added the complete top-level menu structure for File, Edit, Image, Layer, Type, Select, Filter, View, Window, and Help workflows.
