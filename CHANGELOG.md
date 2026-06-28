@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.22 - 2026-06-28
+
+- Added non-destructive vector rectangle shape layers, compositor rendering, shape-tool drag creation, and vector-layer tests.
+
 ## PyShop v0.1.21 - 2026-06-28
 
 - Added core retouch dab operations and canvas workflows for healing, blur, sharpen, dodge, burn, and sponge toolbar tools.

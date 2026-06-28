@@ -41,6 +41,7 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     layer.is_group = True
     layer.group_id = "group-1"
     layer.group_expanded = False
+    layer.vector_shape = {"type": "rectangle", "box": (0, 0, 2, 2), "fill": (1, 2, 3, 255)}
 
     duplicate = layer.copy()
     layer.image.putpixel((0, 0), (255, 0, 0, 255))
@@ -58,6 +59,7 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     assert duplicate.is_group is True
     assert duplicate.group_id == "group-1"
     assert duplicate.group_expanded is False
+    assert duplicate.vector_shape == {"type": "rectangle", "box": (0, 0, 2, 2), "fill": (1, 2, 3, 255)}
     assert duplicate.mask.getpixel((0, 0)) == 128
     assert duplicate.image.getpixel((0, 0)) == (10, 20, 30, 255)
 
@@ -322,3 +324,13 @@ def test_group_layer_composites_consecutive_children_with_group_opacity_and_visi
     hidden = composite_layers([group, child])
 
     assert hidden.getpixel((0, 0))[3] == 0
+
+
+def test_vector_shape_layer_renders_without_raster_pixels():
+    layer = Layer("Shape", image=Image.new("RGBA", (4, 4), (0, 0, 0, 0)))
+    layer.vector_shape = {"type": "rectangle", "box": (1, 1, 3, 3), "fill": (255, 0, 0, 255)}
+
+    result = composite_layers([layer])
+
+    assert result.getpixel((1, 1)) == (255, 0, 0, 255)
+    assert layer.image.getpixel((1, 1))[3] == 0

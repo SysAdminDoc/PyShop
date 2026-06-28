@@ -293,6 +293,7 @@ class CanvasWidget(QWidget):
         self.marching_ants_path = None
         self.marching_offset = 0
         self.crop_rect = None
+        self.shape_rect = None
         self._lasso_points = []
         self._checker_tile = None
         self.tile_cache = TiledCompositeCache()
@@ -504,6 +505,11 @@ class CanvasWidget(QWidget):
             inn = QPainterPath(); inn.addRect(self.crop_rect)
             painter.fillPath(ov.subtracted(inn), QColor(0, 0, 0, 120))
 
+        if self.shape_rect is not None:
+            pen_s = QPen(QColor("#f5c542"), 1.5, Qt.DashLine); pen_s.setCosmetic(True)
+            painter.setPen(pen_s); painter.setBrush(Qt.NoBrush)
+            painter.drawRect(self.shape_rect)
+
         painter.restore()
         self._draw_rulers(painter, doc_width, doc_height)
         painter.end()
@@ -558,6 +564,8 @@ class CanvasWidget(QWidget):
                 self.drawing = True
             elif tool == "crop":
                 self.selection_start = img_pos; self.crop_rect = None; self.drawing = True
+            elif tool == "shape":
+                self.selection_start = img_pos; self.shape_rect = None; self.drawing = True
             elif tool == "text":
                 self.editor.insert_text_at(ix, iy)
             elif tool == "lasso":
@@ -616,6 +624,11 @@ class CanvasWidget(QWidget):
                 x2, y2 = img_pos.x(), img_pos.y()
                 self.crop_rect = QRectF(min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1))
                 self.update()
+            elif tool == "shape" and self.selection_start:
+                x1, y1 = self.selection_start.x(), self.selection_start.y()
+                x2, y2 = img_pos.x(), img_pos.y()
+                self.shape_rect = QRectF(min(x1,x2), min(y1,y2), abs(x2-x1), abs(y2-y1))
+                self.update()
             elif tool == "lasso":
                 self._lasso_points.append(img_pos); self.update()
             elif tool == "clone_stamp":
@@ -656,6 +669,10 @@ class CanvasWidget(QWidget):
                     self.set_selection_mask(mask)
                     self.selection_rect = None
                 self._lasso_points = []
+
+            elif tool == "shape" and self.shape_rect:
+                self.editor.add_shape_layer(self.shape_rect)
+                self.shape_rect = None
 
             self.drawing = False
             self.update()
@@ -1000,8 +1017,9 @@ class LayerPanel(QWidget):
             clip = " [C]" if layer.clipping else ""
             adjustment = " [A]" if layer.adjustment else ""
             group = " [G]" if layer.is_group else ""
+            vector = " [V]" if layer.vector_shape else ""
             prefix = "  " if layer.group_id and not layer.is_group else ""
-            item = QListWidgetItem(f"{prefix}{vis}{layer.name}{lock}{mask}{clip}{adjustment}{group}")
+            item = QListWidgetItem(f"{prefix}{vis}{layer.name}{lock}{mask}{clip}{adjustment}{group}{vector}")
             item.setData(Qt.UserRole, idx)
             self.layer_list.addItem(item)
         active = self.editor.active_layer_index
@@ -1709,6 +1727,24 @@ class ImageEditor(QMainWindow):
         self.canvas.clear_selection(); self.canvas.fit_in_view(); self.update_layer_panel()
 
     # Text
+    def add_shape_layer(self, rect):
+        if not self.layers or rect.width() < 1 or rect.height() < 1:
+            return
+        self.history.save_state(self.layers, self.active_layer_index)
+        width, height = self.layers[0].image.size
+        layer = Layer(f"Shape {len(self.layers) + 1}", width, height)
+        color = qcolor_to_rgba(self.fg_color, self.brush_opacity)
+        layer.vector_shape = {
+            "type": "rectangle",
+            "box": (int(rect.x()), int(rect.y()), int(rect.x() + rect.width()), int(rect.y() + rect.height())),
+            "fill": color,
+            "stroke": qcolor_to_rgba(self.bg_color, 255),
+            "stroke_width": 0,
+        }
+        self.layers.append(layer)
+        self.set_active_layer_index(len(self.layers) - 1)
+        self.update_layer_panel(); self.canvas.update()
+
     def insert_text_at(self, x, y):
         dlg = QDialog(self); dlg.setWindowTitle("Insert Text"); form = QFormLayout(dlg)
         te = QTextEdit(); te.setPlaceholderText("Enter text..."); form.addRow("Text:", te)

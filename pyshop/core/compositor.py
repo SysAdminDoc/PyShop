@@ -3,6 +3,7 @@ from PIL import Image, ImageFilter
 from .adjustments import apply_adjustment
 from .blend import blend_layers
 from .tiles import TileBox
+from .vector import render_vector_shape_tile
 
 
 def _apply_opacity(image: Image.Image, opacity: int) -> Image.Image:
@@ -58,7 +59,10 @@ def _adjustment_effect_mask(layer, base: Image.Image, crop_box):
 
 
 def render_layer_tile(layer, crop_box) -> Image.Image:
-    image = layer.image.crop(crop_box)
+    if layer.vector_shape:
+        image = render_vector_shape_tile(layer.vector_shape, crop_box, (crop_box[2] - crop_box[0], crop_box[3] - crop_box[1]))
+    else:
+        image = layer.image.crop(crop_box)
     image = _apply_mask(image, layer, crop_box)
     return _apply_opacity(image, layer.opacity)
 
