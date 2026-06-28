@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 
 
-def save_image_atomic(path, image, format_name=None):
+def save_image_atomic(path, image, format_name=None, **save_kwargs):
     path = Path(path)
     if path.parent:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -11,9 +11,9 @@ def save_image_atomic(path, image, format_name=None):
     os.close(fd)
     try:
         if format_name:
-            image.save(temp_name, format=format_name)
+            image.save(temp_name, format=format_name, **save_kwargs)
         else:
-            image.save(temp_name)
+            image.save(temp_name, **save_kwargs)
         os.replace(temp_name, path)
     except Exception:
         try:

@@ -200,6 +200,7 @@ def test_document_owns_editor_state_and_revision_metadata():
     assert kwargs["current_path"] == [(0, 0), (1, 1)]
     assert kwargs["guides"] == [("vertical", 1)]
     assert kwargs["macro_steps"] == [("set_tool", ("brush",))]
+    assert "color_profile" in kwargs
 
     document.mark_saved()
     assert document.has_unsaved_changes is False
@@ -352,11 +353,13 @@ def test_native_project_round_trip_preserves_document_state(tmp_path):
         current_path=[(0.5, 1.5), (2, 1), (1, 0)],
         current_path_closed=True,
         macro_steps=[("set_tool", ("brush",)), ("set_show_grid", (True,))],
+        color_profile=b"profile-bytes",
     )
 
     restored = load_project(saved_path)
 
     assert restored.document_size == (3, 2)
+    assert restored.color_profile == b"profile-bytes"
     assert restored.active_layer_index == 3
     assert restored.selection_mask.getpixel((0, 0)) == 255
     assert restored.channel_visibility == {"red": False, "green": True, "blue": False, "alpha": True}

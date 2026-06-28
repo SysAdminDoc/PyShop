@@ -29,6 +29,7 @@ class Document:
     macro_steps: list = field(default_factory=list)
     file_path: str | None = None
     source_path: str | None = None
+    color_profile: bytes | None = None
     dirty_revision: int = 0
     saved_revision: int = 0
 
@@ -60,6 +61,7 @@ class Document:
         self.channel_visibility = default_channel_visibility()
         self.guides = []
         self.macro_steps = []
+        self.color_profile = None
         self.mark_dirty()
 
     def apply_project_state(self, state, path):
@@ -71,6 +73,7 @@ class Document:
         self.channel_visibility = state.channel_visibility
         self.guides = state.guides
         self.macro_steps = state.macro_steps
+        self.color_profile = state.color_profile
         self.file_path = path
         self.source_path = path
         self.mark_saved()
@@ -85,6 +88,7 @@ class Document:
             "current_path": self.current_path,
             "current_path_closed": self.current_path_closed,
             "macro_steps": self.macro_steps,
+            "color_profile": self.color_profile,
         }
 
     def mark_dirty(self):
@@ -121,7 +125,9 @@ def open_raster_image(path, max_pixels: int = MAX_DOCUMENT_PIXELS):
                         f"limit is {max_pixels:,} pixels)."
                     )
                 image.load()
-                return image.convert("RGBA")
+                converted = image.convert("RGBA")
+                converted.info.update(image.info)
+                return converted
     except ImageOpenError:
         raise
     except Image.DecompressionBombWarning as exc:

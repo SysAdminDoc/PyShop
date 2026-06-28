@@ -1,6 +1,6 @@
-# PyShop v0.1.37
+# PyShop v0.1.38
 
-![Version](https://img.shields.io/badge/version-v0.1.37-7c3aed)
+![Version](https://img.shields.io/badge/version-v0.1.38-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Language](https://img.shields.io/badge/language-Python-3776AB)
 ![Type](https://img.shields.io/badge/type-Desktop%20App-brightgreen)
@@ -13,7 +13,7 @@ An open-source alternative to Photoshop written in Python. Full-featured image e
 - **Selection Tools** — Rectangular, elliptical, lasso, and magic wand selections
 - **Brush Engine** — Customizable brushes with size, opacity, and hardness controls
 - **Filters & Effects** — Editable effect layers for blur, sharpen, stylize, and pixel filters plus color adjustments and transforms
-- **File Support** — Save and reopen native `.pyshop` layered projects; import common raster formats, PSDs, and OpenRaster; export flattened raster images, layered/flattened PSDs, and OpenRaster
+- **File Support** — Save and reopen native `.pyshop` layered projects; import common raster formats, camera RAW files, PSDs, and OpenRaster; export flattened raster images, export presets, batch conversions, layered/flattened PSDs, and OpenRaster
 - **Dark Theme** — Professional dark-themed interface
 - **Undo/Redo** — Full history support
 - **Automation** — Record, save, load, replay, and persist action macros with workspace presets
@@ -40,6 +40,7 @@ python -m pytest -q
 - PyQt5 5.15.x
 - Pillow 12.2.x
 - numpy 1.24.x-2.x
+- rawpy 0.25+
 
 PyQt5 is available under GPL/commercial licensing from Riverbank. Keep that license boundary in mind before redistributing packaged builds.
 
@@ -47,12 +48,12 @@ PyQt5 is available under GPL/commercial licensing from Riverbank. Keep that lice
 
 - Open an existing PNG or JPG and confirm the canvas renders with zoom and pan working.
 - Import a PNG, JPG, or PSD and confirm Save As defaults to a `.pyshop` project instead of overwriting the source file.
-- Save a layered `.pyshop` project, reopen it, and confirm layers, masks, groups, text/vector metadata, paths, guides, channels, and macro steps are preserved.
+- Save a layered `.pyshop` project, reopen it, and confirm layers, masks, groups, text/vector metadata, paths, guides, channels, macro steps, and color profiles are preserved.
 - Paint with brush and eraser tools, then undo and redo the edits.
 - Add, duplicate, reorder, hide, lock, and merge layers while confirming the canvas composite updates.
 - Create rectangular, elliptical, lasso, and magic wand selections, then clear and invert selections.
 - Apply one adjustment and one filter to the active layer.
-- Save the document and export a PNG, then reopen the output image.
+- Save the document, export with a preset, batch-export two inputs, and reopen the output images.
 
 ## Related Tools
 

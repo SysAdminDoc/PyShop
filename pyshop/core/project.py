@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import tempfile
@@ -33,6 +34,7 @@ class ProjectState:
     current_path_closed: bool
     macro_steps: list
     document_size: tuple
+    color_profile: bytes | None = None
 
 
 def save_project(
@@ -45,6 +47,7 @@ def save_project(
     current_path=None,
     current_path_closed: bool = False,
     macro_steps=None,
+    color_profile: bytes | None = None,
     max_pixels: int = MAX_DOCUMENT_PIXELS,
 ):
     if not layers:
@@ -84,7 +87,11 @@ def save_project(
         manifest = {
             "format": "pyshop-project",
             "format_version": PROJECT_FORMAT_VERSION,
-            "document": {"width": width, "height": height},
+            "document": {
+                "width": width,
+                "height": height,
+                "color_profile": _encode_bytes(color_profile),
+            },
             "active_layer_index": int(active_layer_index),
             "selection_mask": selection_name,
             "channel_visibility": _channel_visibility(channel_visibility),
@@ -130,6 +137,7 @@ def load_project(path, max_pixels: int = MAX_DOCUMENT_PIXELS) -> ProjectState:
                 current_path_closed=bool(manifest.get("current_path_closed", False)),
                 macro_steps=macro_steps_from_records(manifest.get("macro_steps", [])),
                 document_size=(width, height),
+                color_profile=_decode_bytes(document.get("color_profile")),
             )
     except ProjectFormatError:
         raise
@@ -171,6 +179,23 @@ def _image_png_bytes(image, mode: str) -> bytes:
     buffer = BytesIO()
     image.convert(mode).save(buffer, "PNG")
     return buffer.getvalue()
+
+
+def _encode_bytes(value: bytes | None) -> str | None:
+    if value is None:
+        return None
+    return base64.b64encode(value).decode("ascii")
+
+
+def _decode_bytes(value) -> bytes | None:
+    if not value:
+        return None
+    if not isinstance(value, str):
+        raise ProjectFormatError("Document color profile metadata is invalid.")
+    try:
+        return base64.b64decode(value.encode("ascii"), validate=True)
+    except (ValueError, TypeError) as exc:
+        raise ProjectFormatError("Document color profile metadata is invalid.") from exc
 
 
 def _load_image(archive, name: str, mode: str, max_pixels: int):
