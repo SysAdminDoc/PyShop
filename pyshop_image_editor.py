@@ -386,6 +386,30 @@ class CanvasWidget(QWidget):
                 elif orientation == "horizontal" and top <= value <= bottom:
                     painter.drawLine(QPointF(0, value), QPointF(doc_width, value))
 
+    def _draw_rulers(self, painter, doc_width, doc_height):
+        if not self.editor.show_rulers:
+            return
+        ruler_h = 22
+        ruler_w = 36
+        painter.fillRect(0, 0, self.width(), ruler_h, QColor("#252526"))
+        painter.fillRect(0, 0, ruler_w, self.height(), QColor("#252526"))
+        painter.setPen(QColor("#777"))
+        painter.drawLine(0, ruler_h, self.width(), ruler_h)
+        painter.drawLine(ruler_w, 0, ruler_w, self.height())
+        painter.setFont(QFont("Segoe UI", 7))
+        painter.setPen(QColor("#bdbdbd"))
+        step = 100 if self.zoom >= 0.5 else 250
+        for x in range(0, doc_width + 1, step):
+            cx = self.image_to_canvas(QPointF(x, 0)).x()
+            if ruler_w <= cx <= self.width():
+                painter.drawLine(QPointF(cx, ruler_h - 6), QPointF(cx, ruler_h))
+                painter.drawText(int(cx + 2), 10, str(x))
+        for y in range(0, doc_height + 1, step):
+            cy = self.image_to_canvas(QPointF(0, y)).y()
+            if ruler_h <= cy <= self.height():
+                painter.drawLine(QPointF(ruler_w - 6, cy), QPointF(ruler_w, cy))
+                painter.drawText(2, int(cy - 2), str(y))
+
     def update(self, *args, **kwargs):
         self.tile_cache.invalidate()
         return super().update(*args, **kwargs)
@@ -472,6 +496,7 @@ class CanvasWidget(QWidget):
             painter.fillPath(ov.subtracted(inn), QColor(0, 0, 0, 120))
 
         painter.restore()
+        self._draw_rulers(painter, doc_width, doc_height)
         painter.end()
 
     def mousePressEvent(self, event):
@@ -543,6 +568,7 @@ class CanvasWidget(QWidget):
             if layer:
                 w, h = layer.image.size
                 if 0 <= ix < w and 0 <= iy < h:
+                    self.editor.update_info_panel(ix, iy, layer.image.getpixel((ix, iy)))
                     self.editor.statusBar().showMessage(
                         f"X: {ix}  Y: {iy}  |  Zoom: {self.zoom:.0%}  |  Tool: {self.editor.current_tool}")
 
@@ -770,6 +796,107 @@ class CanvasWidget(QWidget):
     def clear_selection(self):
         self.selection_mask = None; self.marching_ants_path = None
         self.selection_rect = None; self.update()
+
+
+def pil_to_qpixmap(image, max_size):
+    if image is None:
+        return QPixmap()
+    preview = image.copy()
+    preview.thumbnail(max_size, Image.LANCZOS)
+    data = preview.tobytes("raw", "RGBA")
+    qimg = QImage(data, preview.width, preview.height, QImage.Format_RGBA8888).copy()
+    return QPixmap.fromImage(qimg)
+
+
+class NavigatorPanel(QWidget):
+    def __init__(self, editor):
+        super().__init__()
+        self.editor = editor
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        self.preview = QLabel("No image")
+        self.preview.setAlignment(Qt.AlignCenter)
+        self.preview.setMinimumHeight(120)
+        layout.addWidget(self.preview)
+
+    def refresh(self):
+        composite = self.editor.get_composite()
+        if composite is None:
+            self.preview.setText("No image")
+            self.preview.setPixmap(QPixmap())
+            return
+        self.preview.setText("")
+        self.preview.setPixmap(pil_to_qpixmap(composite, (220, 140)))
+
+
+class HistogramPanel(QWidget):
+    def __init__(self, editor):
+        super().__init__()
+        self.editor = editor
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        self.histogram = QLabel("No image")
+        self.histogram.setAlignment(Qt.AlignCenter)
+        self.histogram.setMinimumHeight(90)
+        layout.addWidget(self.histogram)
+
+    def refresh(self):
+        composite = self.editor.get_composite()
+        if composite is None:
+            self.histogram.setText("No image")
+            self.histogram.setPixmap(QPixmap())
+            return
+        pixmap = QPixmap(220, 90)
+        pixmap.fill(QColor("#1e1e1e"))
+        painter = QPainter(pixmap)
+        rgb_hist = composite.convert("RGB").histogram()
+        colors = [QColor(255, 80, 80, 150), QColor(80, 220, 120, 150), QColor(80, 160, 255, 150)]
+        width, height = pixmap.width(), pixmap.height()
+        for channel in range(3):
+            hist = rgb_hist[channel * 256:(channel + 1) * 256]
+            peak = max(hist) or 1
+            painter.setPen(colors[channel])
+            for x in range(width):
+                bucket = min(255, int(x * 256 / width))
+                bar = int(hist[bucket] / peak * (height - 8))
+                painter.drawLine(x, height - 4, x, height - 4 - bar)
+        painter.end()
+        self.histogram.setText("")
+        self.histogram.setPixmap(pixmap)
+
+
+class InfoPanel(QWidget):
+    def __init__(self, editor):
+        super().__init__()
+        self.editor = editor
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        self.document_label = QLabel("Document: -")
+        self.cursor_label = QLabel("Cursor: -")
+        self.color_label = QLabel("Color: -")
+        self.zoom_label = QLabel("Zoom: 100%")
+        self.layer_label = QLabel("Layer: -")
+        for label in [self.document_label, self.cursor_label, self.color_label, self.zoom_label, self.layer_label]:
+            layout.addWidget(label)
+        layout.addStretch(1)
+
+    def refresh_document(self):
+        if self.editor.layers:
+            width, height = self.editor.layers[0].image.size
+            self.document_label.setText(f"Document: {width} x {height}")
+        else:
+            self.document_label.setText("Document: -")
+        layer = self.editor.active_layer()
+        self.layer_label.setText(f"Layer: {layer.name}" if layer else "Layer: -")
+        self.zoom_label.setText(f"Zoom: {self.editor.canvas.zoom:.0%}")
+
+    def update_cursor(self, x, y, color=None):
+        self.cursor_label.setText(f"Cursor: {x}, {y}")
+        if color is None:
+            self.color_label.setText("Color: -")
+        else:
+            red, green, blue, alpha = color
+            self.color_label.setText(f"Color: {red}, {green}, {blue}, {alpha}")
 
 
 # ---- Layer Panel -----------------------------------------------------------
@@ -1033,7 +1160,7 @@ class ImageEditor(QMainWindow):
         self.brush_texture = 0; self.brush_color_jitter = 0
         self.brush_pressure_size = False; self.brush_pressure_opacity = False
         self.magic_wand_tolerance = 32; self.magic_wand_contiguous = True; self.magic_wand_sample_all = False
-        self.show_grid = False; self.show_guides = True; self.snap_enabled = True
+        self.show_grid = False; self.show_guides = True; self.show_rulers = True; self.snap_enabled = True
         self.grid_size = 64; self.guides = []
         self.clone_source = None; self.history = HistoryManager(); self.file_path = None
         self.init_ui(); self.showMaximized()
@@ -1136,6 +1263,7 @@ class ImageEditor(QMainWindow):
         self._act(vm, "Zoom &Out", "Ctrl+-", lambda: self._zoom(0.8))
         self._act(vm, "&Actual Size", "Ctrl+1", lambda: self._set_zoom(1.0))
         vm.addSeparator()
+        self.rulers_action = self._check_act(vm, "Show Rulers", self.show_rulers, self.set_show_rulers)
         self.grid_action = self._check_act(vm, "Show Grid", self.show_grid, self.set_show_grid)
         self.guides_action = self._check_act(vm, "Show Guides", self.show_guides, self.set_show_guides)
         self.snap_action = self._check_act(vm, "Snap", self.snap_enabled, self.set_snap_enabled)
@@ -1245,6 +1373,17 @@ class ImageEditor(QMainWindow):
         self.history_list = QListWidget()
         hd = QDockWidget("History", self); hd.setWidget(self.history_list); hd.setMinimumWidth(220)
         self.addDockWidget(Qt.RightDockWidgetArea, hd)
+        self.navigator_panel = NavigatorPanel(self)
+        nd = QDockWidget("Navigator", self); nd.setWidget(self.navigator_panel); nd.setMinimumWidth(220)
+        self.addDockWidget(Qt.RightDockWidgetArea, nd)
+        self.histogram_panel = HistogramPanel(self)
+        hgd = QDockWidget("Histogram", self); hgd.setWidget(self.histogram_panel); hgd.setMinimumWidth(220)
+        self.addDockWidget(Qt.RightDockWidgetArea, hgd)
+        self.info_panel = InfoPanel(self)
+        infod = QDockWidget("Info", self); infod.setWidget(self.info_panel); infod.setMinimumWidth(220)
+        self.addDockWidget(Qt.RightDockWidgetArea, infod)
+        self.layers_changed.connect(self.refresh_analysis_panels)
+        self.active_layer_changed.connect(lambda _index: self.refresh_analysis_panels())
 
     def set_tool(self, tool):
         self.current_tool = tool; self.statusBar().showMessage(f"Tool: {tool}")
@@ -1277,6 +1416,16 @@ class ImageEditor(QMainWindow):
         self.layers_changed.emit()
 
     def update_layer_panel(self): self.notify_layers_changed()
+
+    def refresh_analysis_panels(self):
+        if hasattr(self, "navigator_panel"):
+            self.navigator_panel.refresh()
+            self.histogram_panel.refresh()
+            self.info_panel.refresh_document()
+
+    def update_info_panel(self, x, y, color=None):
+        if hasattr(self, "info_panel"):
+            self.info_panel.update_cursor(x, y, color)
 
     # Compositing
     def get_composite(self):
@@ -1672,8 +1821,15 @@ class ImageEditor(QMainWindow):
             self._apply_to_active(ap)
 
     # Zoom
-    def _zoom(self, f): self.canvas.zoom *= f; self.canvas.update()
-    def _set_zoom(self, v): self.canvas.zoom = v; self.canvas.update()
+    def _zoom(self, f):
+        self.canvas.zoom *= f
+        self.canvas.update()
+        self.refresh_analysis_panels()
+
+    def _set_zoom(self, v):
+        self.canvas.zoom = v
+        self.canvas.update()
+        self.refresh_analysis_panels()
 
     def set_show_grid(self, checked):
         self.show_grid = checked
@@ -1681,6 +1837,10 @@ class ImageEditor(QMainWindow):
 
     def set_show_guides(self, checked):
         self.show_guides = checked
+        self.canvas.update()
+
+    def set_show_rulers(self, checked):
+        self.show_rulers = checked
         self.canvas.update()
 
     def set_snap_enabled(self, checked):
