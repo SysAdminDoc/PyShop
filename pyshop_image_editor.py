@@ -21,7 +21,7 @@ from pyshop.core import (
     erase_brush_line,
     flattened_document_layers,
     image_document_layers,
-    iter_tile_boxes,
+    iter_intersecting_tile_boxes,
     named_background_rgba,
     paint_brush_dab,
     paint_brush_line,
@@ -370,25 +370,30 @@ class CanvasWidget(QWidget):
             return
 
         doc_width, doc_height = self.editor.layers[0].image.size
+        visible_bounds = self.viewport.visible_image_bounds((doc_width, doc_height), (self.width(), self.height()))
 
         painter.save()
         painter.translate(self.pan_offset)
         painter.scale(self.zoom, self.zoom)
 
-        # Checkerboard
-        tile = self._get_checker()
-        tw, th = tile.width(), tile.height()
-        for y in range(0, doc_height, th):
-            for x in range(0, doc_width, tw):
-                dw = min(tw, doc_width - x)
-                dh = min(th, doc_height - y)
-                painter.drawPixmap(x, y, dw, dh, tile, 0, 0, dw, dh)
+        if visible_bounds is not None:
+            left, top, right, bottom = visible_bounds
 
-        for box in iter_tile_boxes(doc_width, doc_height):
-            tile_image = self.tile_cache.get_tile(self.editor.layers, box)
-            tile_data = tile_image.tobytes("raw", "RGBA")
-            qimg = QImage(tile_data, box.width, box.height, QImage.Format_RGBA8888)
-            painter.drawImage(box.x, box.y, qimg)
+            tile = self._get_checker()
+            tw, th = tile.width(), tile.height()
+            start_x = (left // tw) * tw
+            start_y = (top // th) * th
+            for y in range(start_y, bottom, th):
+                for x in range(start_x, right, tw):
+                    dw = min(tw, doc_width - x)
+                    dh = min(th, doc_height - y)
+                    painter.drawPixmap(x, y, dw, dh, tile, 0, 0, dw, dh)
+
+            for box in iter_intersecting_tile_boxes(doc_width, doc_height, visible_bounds):
+                tile_image = self.tile_cache.get_tile(self.editor.layers, box)
+                tile_data = tile_image.tobytes("raw", "RGBA")
+                qimg = QImage(tile_data, box.width, box.height, QImage.Format_RGBA8888)
+                painter.drawImage(box.x, box.y, qimg)
 
         # ---- Marching Ants ----
         if self.marching_ants_path is not None:

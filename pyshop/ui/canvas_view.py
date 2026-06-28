@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import math
 
 from PyQt5.QtCore import QPointF
 
@@ -27,6 +28,22 @@ class CanvasViewport:
             return
         self.zoom = min(view_width / image_width, view_height / image_height) * margin
         self.pan_offset = QPointF((view_width - image_width * self.zoom) / 2, (view_height - image_height * self.zoom) / 2)
+
+    def visible_image_bounds(self, image_size, view_size):
+        image_width, image_height = image_size
+        view_width, view_height = view_size
+        if image_width <= 0 or image_height <= 0 or view_width <= 0 or view_height <= 0:
+            return None
+
+        top_left = self.canvas_to_image(QPointF(0, 0))
+        bottom_right = self.canvas_to_image(QPointF(view_width, view_height))
+        left = max(0, math.floor(min(top_left.x(), bottom_right.x())))
+        top = max(0, math.floor(min(top_left.y(), bottom_right.y())))
+        right = min(image_width, math.ceil(max(top_left.x(), bottom_right.x())))
+        bottom = min(image_height, math.ceil(max(top_left.y(), bottom_right.y())))
+        if right <= left or bottom <= top:
+            return None
+        return left, top, right, bottom
 
     def zoom_at(self, canvas_pos: QPointF, factor: float):
         old_zoom = self.zoom

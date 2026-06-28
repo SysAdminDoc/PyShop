@@ -22,6 +22,18 @@ def test_canvas_viewport_fit_centers_image_with_margin():
     assert viewport.pan_offset == QPointF(15, 82.5)
 
 
+def test_canvas_viewport_visible_bounds_clamps_to_image_area():
+    viewport = CanvasViewport(zoom=2.0, pan_offset=QPointF(-10, -20))
+
+    assert viewport.visible_image_bounds((100, 100), (60, 60)) == (5, 10, 35, 40)
+
+
+def test_canvas_viewport_visible_bounds_returns_none_when_image_is_offscreen():
+    viewport = CanvasViewport(zoom=1.0, pan_offset=QPointF(200, 200))
+
+    assert viewport.visible_image_bounds((100, 100), (50, 50)) is None
+
+
 def test_canvas_viewport_zoom_at_preserves_anchor_position():
     viewport = CanvasViewport(zoom=1.0, pan_offset=QPointF(0, 0))
 
