@@ -7,6 +7,7 @@ from pyshop.core import (
     HistoryManager,
     HistoryCommand,
     Layer,
+    apply_channel_visibility,
     apply_retouch_dab,
     blend_layers,
     build_marching_ants_path,
@@ -228,6 +229,14 @@ def test_retouch_dab_blurs_local_patch():
     apply_retouch_dab(image, 3, 3, 7, "blur")
 
     assert 0 < image.getpixel((2, 3))[0] < 255
+
+
+def test_apply_channel_visibility_zeros_hidden_color_channels():
+    image = Image.new("RGBA", (1, 1), (10, 20, 30, 40))
+
+    result = apply_channel_visibility(image, {"red": False, "green": True, "blue": False, "alpha": False})
+
+    assert result.getpixel((0, 0)) == (0, 20, 0, 255)
 
 
 def test_selection_mask_bounds_returns_cropped_extent():
