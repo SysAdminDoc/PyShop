@@ -1,6 +1,6 @@
-# PyShop v0.1.30
+# PyShop v0.1.31
 
-![Version](https://img.shields.io/badge/version-v0.1.30-7c3aed)
+![Version](https://img.shields.io/badge/version-v0.1.31-7c3aed)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Language](https://img.shields.io/badge/language-Python-3776AB)
 ![Type](https://img.shields.io/badge/type-Desktop%20App-brightgreen)
@@ -16,6 +16,7 @@ An open-source alternative to Photoshop written in Python. Full-featured image e
 - **File Support** — Save and reopen native `.pyshop` layered projects; import common raster formats and PSDs; export flattened raster images and flattened PSDs
 - **Dark Theme** — Professional dark-themed interface
 - **Undo/Redo** — Full history support
+- **Automation** — Record, save, load, replay, and persist action macros with workspace presets
 
 ## Installation
 

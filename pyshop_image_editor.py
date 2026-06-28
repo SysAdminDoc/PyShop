@@ -27,7 +27,9 @@ from pyshop.core import (
     iter_brush_dabs,
     iter_intersecting_tile_boxes,
     is_project_path,
+    load_macro_file,
     load_project,
+    MacroFormatError,
     named_background_rgba,
     open_raster_image,
     paint_brush_stroke,
@@ -36,6 +38,7 @@ from pyshop.core import (
     selection_mask_bounds,
     load_psd_layers,
     save_flattened_psd,
+    save_macro_file,
     save_project,
     smoothed_brush_point,
     TiledCompositeCache,
@@ -55,7 +58,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QTextEdit, QAbstractItemView, QTabWidget, QProgressBar
 )
 from PyQt5.QtCore import (
-    Qt, QPoint, QRect, QSize, QTimer, pyqtSignal, QPointF, QRectF
+    Qt, QPoint, QRect, QSize, QTimer, pyqtSignal, QPointF, QRectF, QSettings
 )
 from PyQt5.QtGui import (
     QImage, QPixmap, QPainter, QPen, QBrush, QColor, QIcon,
@@ -1207,7 +1210,8 @@ class ImageEditor(QMainWindow):
         self.show_grid = False; self.show_guides = True; self.show_rulers = True; self.snap_enabled = True
         self.grid_size = 64
         self.macro_recording = False; self.macro_replaying = False
-        self.workspace_preset = None; self.docks = {}
+        self.settings = QSettings("SysAdminDoc", "PyShop")
+        self.docks = {}
         self.clone_source = None; self.history = HistoryManager()
         self.init_ui(); self.showMaximized()
 
@@ -1302,6 +1306,7 @@ class ImageEditor(QMainWindow):
         self.canvas.color_picked.connect(self.set_fg_color)
         self.setCentralWidget(self.canvas)
         self.create_menus(); self.create_toolbars(); self.create_panels()
+        self.restore_workspace_preset(silent=True)
         self.statusBar().showMessage("Ready")
 
     def create_menus(self):
@@ -1419,6 +1424,8 @@ class ImageEditor(QMainWindow):
         self._act(amenu, "Start Macro Recording", "", self.start_macro_recording)
         self._act(amenu, "Stop Macro Recording", "", self.stop_macro_recording)
         self._act(amenu, "Replay Macro", "", self.replay_macro)
+        self._act(amenu, "Save Macro...", "", self.save_macro)
+        self._act(amenu, "Load Macro...", "", self.load_macro)
         self._act(amenu, "Clear Macro", "", self.clear_macro)
 
         hm = mb.addMenu("&Help")
@@ -1564,6 +1571,7 @@ class ImageEditor(QMainWindow):
     def record_macro_step(self, command, *args):
         if self.macro_recording and not self.macro_replaying:
             self.macro_steps.append((command, args))
+            self.document.mark_dirty()
 
     def start_macro_recording(self):
         self.macro_steps = []
@@ -1579,6 +1587,19 @@ class ImageEditor(QMainWindow):
         self.macro_recording = False
         self.statusBar().showMessage("Macro cleared")
 
+    def run_macro_step(self, command, args):
+        actions = {
+            "set_tool": self.set_tool,
+            "set_show_grid": self.set_show_grid,
+            "set_show_guides": self.set_show_guides,
+            "set_show_rulers": self.set_show_rulers,
+            "set_snap_enabled": self.set_snap_enabled,
+        }
+        action = actions.get(command)
+        if action is None:
+            raise MacroFormatError(f"Unsupported macro command: {command}")
+        action(*args)
+
     def replay_macro(self):
         if not self.macro_steps:
             self.statusBar().showMessage("No macro steps recorded")
@@ -1586,33 +1607,51 @@ class ImageEditor(QMainWindow):
         self.macro_replaying = True
         try:
             for command, args in list(self.macro_steps):
-                if command == "set_tool":
-                    self.set_tool(*args)
-                elif command == "set_show_grid":
-                    self.set_show_grid(*args)
-                elif command == "set_show_guides":
-                    self.set_show_guides(*args)
-                elif command == "set_show_rulers":
-                    self.set_show_rulers(*args)
-                elif command == "set_snap_enabled":
-                    self.set_snap_enabled(*args)
+                self.run_macro_step(command, args)
+        except Exception as exc:
+            self.statusBar().showMessage(f"Macro replay failed: {exc}")
+            return
         finally:
             self.macro_replaying = False
         self.statusBar().showMessage(f"Replayed {len(self.macro_steps)} macro steps")
 
+    def save_macro(self):
+        path, _ = QFileDialog.getSaveFileName(self, "Save Macro", "", "PyShop Macro (*.pyshopmacro);;JSON (*.json);;All Files (*)")
+        if not path:
+            return
+        try:
+            saved_path = save_macro_file(path, self.macro_steps)
+            self.statusBar().showMessage(f"Saved macro to {saved_path}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Failed to save macro:\n{exc}")
+
+    def load_macro(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Load Macro", "", "PyShop Macro (*.pyshopmacro);;JSON (*.json);;All Files (*)")
+        if not path:
+            return
+        try:
+            self.macro_steps = load_macro_file(path)
+            self.macro_recording = False
+            self.statusBar().showMessage(f"Loaded macro with {len(self.macro_steps)} steps")
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Failed to load macro:\n{exc}")
+
     def save_workspace_preset(self):
-        self.workspace_preset = {name: dock.isVisible() for name, dock in self.docks.items()}
+        self.settings.setValue("workspace/mainWindowState", self.saveState())
+        self.settings.sync()
         self.statusBar().showMessage("Workspace preset saved")
 
-    def restore_workspace_preset(self):
-        if not self.workspace_preset:
-            self.statusBar().showMessage("No workspace preset saved")
+    def restore_workspace_preset(self, silent=False):
+        state = self.settings.value("workspace/mainWindowState")
+        if state is None:
+            if not silent:
+                self.statusBar().showMessage("No workspace preset saved")
             return
-        for name, visible in self.workspace_preset.items():
-            dock = self.docks.get(name)
-            if dock:
-                dock.setVisible(visible)
-        self.statusBar().showMessage("Workspace preset restored")
+        if self.restoreState(state):
+            if not silent:
+                self.statusBar().showMessage("Workspace preset restored")
+        elif not silent:
+            self.statusBar().showMessage("Workspace preset could not be restored")
 
     def set_fg_color(self, c): self.fg_color = c; self.update_color_buttons()
 
