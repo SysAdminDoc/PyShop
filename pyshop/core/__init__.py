@@ -9,7 +9,7 @@ from .history import DiffHistoryCommand, HistoryCommand, HistoryManager, PairedS
 from .layer import Layer, clone_layer_state
 from .path import selection_mask_bounds
 from .selection import build_marching_ants_path
-from .tiles import DEFAULT_TILE_SIZE, TileBox, iter_tile_boxes
+from .tiles import DEFAULT_TILE_SIZE, TileBox, iter_intersecting_tile_boxes, iter_tile_boxes
 
 __all__ = [
     "DEFAULT_TILE_SIZE",
@@ -29,6 +29,7 @@ __all__ = [
     "erase_brush_line",
     "flattened_document_layers",
     "image_document_layers",
+    "iter_intersecting_tile_boxes",
     "iter_tile_boxes",
     "named_background_rgba",
     "paint_brush_dab",

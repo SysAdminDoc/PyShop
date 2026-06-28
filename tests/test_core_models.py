@@ -11,6 +11,7 @@ from pyshop.core import (
     composite_layers_tile,
     create_document_layers,
     erase_brush_dab,
+    iter_intersecting_tile_boxes,
     iter_tile_boxes,
     named_background_rgba,
     paint_brush_dab,
@@ -149,6 +150,17 @@ def test_iter_tile_boxes_covers_partial_edges():
     assert boxes[0].as_crop_box() == (0, 0, 2, 2)
     assert boxes[-1].as_crop_box() == (4, 2, 5, 3)
     assert sum(box.width * box.height for box in boxes) == 15
+
+
+def test_iter_intersecting_tile_boxes_culls_to_visible_extent():
+    boxes = list(iter_intersecting_tile_boxes(10, 10, (4.2, 4.2, 6.8, 6.8), tile_size=3))
+
+    assert [box.as_crop_box() for box in boxes] == [
+        (3, 3, 6, 6),
+        (6, 3, 9, 6),
+        (3, 6, 6, 9),
+        (6, 6, 9, 9),
+    ]
 
 
 def test_composite_layers_tile_blends_only_requested_tile():

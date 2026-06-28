@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.12 - 2026-06-28
+
+- Capped canvas paint work to the visible image extent with viewport bounds and intersecting tile iteration.
+
 ## PyShop v0.1.11 - 2026-06-28
 
 - Extracted canvas viewport zoom, pan, coordinate conversion, fit, and anchored zoom math into `pyshop.ui.CanvasViewport`.
