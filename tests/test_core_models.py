@@ -31,15 +31,24 @@ def test_layer_copy_preserves_pixels_and_marks_duplicate_name():
     layer.opacity = 128
     layer.blend_mode = "Multiply"
     layer.locked = True
+    layer.mask = Image.new("L", (2, 2), 128)
+    layer.mask_density = 50
+    layer.mask_feather = 2
+    layer.clipping = True
 
     duplicate = layer.copy()
     layer.image.putpixel((0, 0), (255, 0, 0, 255))
+    layer.mask.putpixel((0, 0), 0)
 
     assert duplicate.name == "Base copy"
     assert duplicate.visible is False
     assert duplicate.opacity == 128
     assert duplicate.blend_mode == "Multiply"
     assert duplicate.locked is True
+    assert duplicate.mask_density == 50
+    assert duplicate.mask_feather == 2
+    assert duplicate.clipping is True
+    assert duplicate.mask.getpixel((0, 0)) == 128
     assert duplicate.image.getpixel((0, 0)) == (10, 20, 30, 255)
 
 
@@ -95,6 +104,15 @@ def test_blend_layers_normal_does_not_mutate_base_image():
 
     assert base.getpixel((0, 0)) == (0, 0, 0, 255)
     assert result.getpixel((0, 0)) != base.getpixel((0, 0))
+
+
+def test_blend_layers_applies_source_alpha_once():
+    base = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+    top = Image.new("RGBA", (1, 1), (255, 0, 0, 128))
+
+    result = blend_layers(base, top, "Normal")
+
+    assert result.getpixel((0, 0))[3] == 128
 
 
 def test_advertised_blend_modes_render_without_mutating_inputs():
@@ -214,3 +232,33 @@ def test_composite_layers_tile_blends_only_requested_tile():
 
     assert tile.size == (2, 2)
     assert tile.getpixel((0, 0))[0] > 0
+
+
+def test_composite_layers_tile_applies_layer_mask_density():
+    layer = Layer("Masked", image=Image.new("RGBA", (2, 1), (255, 0, 0, 255)))
+    layer.mask = Image.new("L", (2, 1), 0)
+    layer.mask.putpixel((1, 0), 255)
+    tile_box = next(iter_tile_boxes(2, 1, tile_size=2))
+
+    tile = composite_layers_tile([layer], tile_box)
+
+    assert tile.getpixel((0, 0))[3] == 0
+    assert tile.getpixel((1, 0))[3] == 255
+
+    layer.mask_density = 50
+    density_tile = composite_layers_tile([layer], tile_box)
+
+    assert 120 <= density_tile.getpixel((0, 0))[3] <= 135
+
+
+def test_composite_layers_tile_applies_clipping_to_underlying_alpha():
+    bottom = Layer("Bottom", image=Image.new("RGBA", (2, 1), (0, 0, 255, 0)))
+    bottom.image.putpixel((1, 0), (0, 0, 255, 255))
+    top = Layer("Clipped", image=Image.new("RGBA", (2, 1), (255, 0, 0, 255)))
+    top.clipping = True
+    tile_box = next(iter_tile_boxes(2, 1, tile_size=2))
+
+    tile = composite_layers_tile([bottom, top], tile_box)
+
+    assert tile.getpixel((0, 0))[3] == 0
+    assert tile.getpixel((1, 0)) == (255, 0, 0, 255)

@@ -1,6 +1,7 @@
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from .blend import blend_layers
+from .tiles import TileBox
 
 
 def _apply_opacity(image: Image.Image, opacity: int) -> Image.Image:
@@ -12,14 +13,56 @@ def _apply_opacity(image: Image.Image, opacity: int) -> Image.Image:
     return Image.merge("RGBA", (red, green, blue, alpha))
 
 
+def _effective_mask(layer, crop_box):
+    if layer.mask is None:
+        return None
+    mask = layer.mask.crop(crop_box) if crop_box else layer.mask.copy()
+    if layer.mask_feather > 0:
+        mask = mask.filter(ImageFilter.GaussianBlur(layer.mask_feather))
+    density = max(0, min(100, layer.mask_density))
+    if density < 100:
+        mask = mask.point(lambda value: int(255 - ((255 - value) * density / 100)))
+    return mask
+
+
+def _apply_mask(image: Image.Image, layer, crop_box) -> Image.Image:
+    mask = _effective_mask(layer, crop_box)
+    if mask is None:
+        return image
+    red, green, blue, alpha = image.split()
+    alpha = Image.composite(alpha, Image.new("L", alpha.size, 0), mask)
+    return Image.merge("RGBA", (red, green, blue, alpha))
+
+
+def _clip_to_base(image: Image.Image, base: Image.Image) -> Image.Image:
+    red, green, blue, alpha = image.split()
+    base_alpha = base.getchannel("A")
+    alpha = Image.composite(alpha, Image.new("L", alpha.size, 0), base_alpha)
+    return Image.merge("RGBA", (red, green, blue, alpha))
+
+
+def render_layer_tile(layer, crop_box) -> Image.Image:
+    image = layer.image.crop(crop_box)
+    image = _apply_mask(image, layer, crop_box)
+    return _apply_opacity(image, layer.opacity)
+
+
+def composite_layers(layers) -> Image.Image | None:
+    if not layers:
+        return None
+    width, height = layers[0].image.size
+    return composite_layers_tile(layers, TileBox(0, 0, width, height))
+
+
 def composite_layers_tile(layers, tile_box) -> Image.Image:
     result = Image.new("RGBA", (tile_box.width, tile_box.height), (0, 0, 0, 0))
     crop_box = tile_box.as_crop_box()
     for layer in layers:
         if not layer.visible:
             continue
-        tile = layer.image.crop(crop_box)
-        tile = _apply_opacity(tile, layer.opacity)
+        tile = render_layer_tile(layer, crop_box)
+        if layer.clipping:
+            tile = _clip_to_base(tile, result)
         result = blend_layers(result, tile, layer.blend_mode)
     return result
 

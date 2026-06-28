@@ -15,8 +15,8 @@ from pyshop.core import (
     BrushSettings,
     HistoryManager,
     Layer,
-    blend_layers,
     build_marching_ants_path,
+    composite_layers,
     create_document_layers,
     erase_brush_stroke,
     flattened_document_layers,
@@ -775,7 +775,21 @@ class LayerPanel(QWidget):
         self.vis_check.toggled.connect(self.on_visibility_toggle); vl.addWidget(self.vis_check)
         self.lock_check = QCheckBox("Lock")
         self.lock_check.toggled.connect(self.on_lock_toggle); vl.addWidget(self.lock_check)
+        self.clip_check = QCheckBox("Clip")
+        self.clip_check.toggled.connect(self.on_clipping_toggle); vl.addWidget(self.clip_check)
         layout.addLayout(vl)
+
+        ml = QHBoxLayout()
+        self.mask_btn = QPushButton("Mask"); self.mask_btn.clicked.connect(self.add_layer_mask); ml.addWidget(self.mask_btn)
+        ml.addWidget(QLabel("Density:"))
+        self.mask_density_slider = QSlider(Qt.Horizontal); self.mask_density_slider.setRange(0, 100); self.mask_density_slider.setValue(100)
+        self.mask_density_slider.valueChanged.connect(self.on_mask_density_change); ml.addWidget(self.mask_density_slider)
+        layout.addLayout(ml)
+
+        fl = QHBoxLayout(); fl.addWidget(QLabel("Feather:"))
+        self.mask_feather_spin = QSpinBox(); self.mask_feather_spin.setRange(0, 100)
+        self.mask_feather_spin.valueChanged.connect(self.on_mask_feather_change); fl.addWidget(self.mask_feather_spin)
+        layout.addLayout(fl)
 
     def refresh(self):
         self.layer_list.blockSignals(True); self.layer_list.clear()
@@ -783,7 +797,9 @@ class LayerPanel(QWidget):
             idx = len(self.editor.layers) - 1 - i
             vis = "V " if layer.visible else "  "
             lock = " [L]" if layer.locked else ""
-            item = QListWidgetItem(f"{vis}{layer.name}{lock}")
+            mask = " [M]" if layer.mask is not None else ""
+            clip = " [C]" if layer.clipping else ""
+            item = QListWidgetItem(f"{vis}{layer.name}{lock}{mask}{clip}")
             item.setData(Qt.UserRole, idx)
             self.layer_list.addItem(item)
         active = self.editor.active_layer_index
@@ -795,6 +811,12 @@ class LayerPanel(QWidget):
             self.opacity_label.setText(f"{layer.opacity*100//255}%")
             self.vis_check.blockSignals(True); self.vis_check.setChecked(layer.visible); self.vis_check.blockSignals(False)
             self.lock_check.blockSignals(True); self.lock_check.setChecked(layer.locked); self.lock_check.blockSignals(False)
+            self.clip_check.blockSignals(True); self.clip_check.setChecked(layer.clipping); self.clip_check.blockSignals(False)
+            has_mask = layer.mask is not None
+            self.mask_density_slider.blockSignals(True); self.mask_density_slider.setValue(layer.mask_density); self.mask_density_slider.blockSignals(False)
+            self.mask_density_slider.setEnabled(has_mask)
+            self.mask_feather_spin.blockSignals(True); self.mask_feather_spin.setValue(layer.mask_feather); self.mask_feather_spin.blockSignals(False)
+            self.mask_feather_spin.setEnabled(has_mask)
             self.blend_combo.blockSignals(True)
             idx = self.blend_combo.findText(layer.blend_mode)
             if idx >= 0: self.blend_combo.setCurrentIndex(idx)
@@ -831,6 +853,36 @@ class LayerPanel(QWidget):
     def on_lock_toggle(self, checked):
         layer = self.editor.active_layer()
         if layer: layer.locked = checked; self.editor.notify_layers_changed()
+
+    def on_clipping_toggle(self, checked):
+        layer = self.editor.active_layer()
+        if layer:
+            layer.clipping = checked
+            self.editor.notify_layers_changed(); self.editor.canvas.update()
+
+    def add_layer_mask(self):
+        layer = self.editor.active_layer()
+        if not layer: return
+        self.editor.history.save_state(self.editor.layers, self.editor.active_layer_index)
+        if self.editor.canvas.selection_mask is not None:
+            layer.mask = self.editor.canvas.selection_mask.convert("L").copy()
+        else:
+            layer.mask = Image.new("L", layer.image.size, 255)
+        layer.mask_density = 100
+        layer.mask_feather = 0
+        self.editor.notify_layers_changed(); self.editor.canvas.update()
+
+    def on_mask_density_change(self, value):
+        layer = self.editor.active_layer()
+        if layer and layer.mask is not None:
+            layer.mask_density = value
+            self.editor.notify_layers_changed(); self.editor.canvas.update()
+
+    def on_mask_feather_change(self, value):
+        layer = self.editor.active_layer()
+        if layer and layer.mask is not None:
+            layer.mask_feather = value
+            self.editor.notify_layers_changed(); self.editor.canvas.update()
 
     def add_layer(self):
         if not self.editor.layers: return
@@ -1116,17 +1168,7 @@ class ImageEditor(QMainWindow):
 
     # Compositing
     def get_composite(self):
-        if not self.layers: return None
-        result = Image.new("RGBA", self.layers[0].image.size, (0,0,0,0))
-        for layer in self.layers:
-            if not layer.visible: continue
-            img = layer.image.copy()
-            if layer.opacity < 255:
-                r,g,b,a = img.split()
-                a = a.point(lambda x: int(x*layer.opacity/255))
-                img = Image.merge("RGBA", (r,g,b,a))
-            result = blend_layers(result, img, layer.blend_mode)
-        return result
+        return composite_layers(self.layers)
 
     # File ops
     def new_image(self):
@@ -1244,6 +1286,8 @@ class ImageEditor(QMainWindow):
             self.history.save_state(self.layers, self.active_layer_index)
             for l in self.layers:
                 ni = Image.new("RGBA",(nw,nh),(0,0,0,0)); ni.paste(l.image,(0,0)); l.image = ni
+                if l.mask is not None:
+                    nm = Image.new("L", (nw, nh), 0); nm.paste(l.mask, (0, 0)); l.mask = nm
             self.canvas.clear_selection(); self.canvas.fit_in_view(); self.update_layer_panel()
 
     def resize_image(self):
@@ -1260,13 +1304,19 @@ class ImageEditor(QMainWindow):
             nw, nh = ws.value(), hs.value()
             rs = {"Lanczos":Image.LANCZOS,"Bilinear":Image.BILINEAR,"Bicubic":Image.BICUBIC,"Nearest":Image.NEAREST}[mt.currentText()]
             self.history.save_state(self.layers, self.active_layer_index)
-            for l in self.layers: l.image = l.image.resize((nw,nh), rs)
+            for l in self.layers:
+                l.image = l.image.resize((nw,nh), rs)
+                if l.mask is not None:
+                    l.mask = l.mask.resize((nw, nh), Image.NEAREST)
             self.canvas.clear_selection(); self.canvas.fit_in_view(); self.update_layer_panel()
 
     def rotate_image(self, deg):
         if not self.layers: return
         self.history.save_state(self.layers, self.active_layer_index)
-        for l in self.layers: l.image = l.image.rotate(-deg, expand=True, fillcolor=(0,0,0,0))
+        for l in self.layers:
+            l.image = l.image.rotate(-deg, expand=True, fillcolor=(0,0,0,0))
+            if l.mask is not None:
+                l.mask = l.mask.rotate(-deg, expand=True, fillcolor=0)
         self.canvas.clear_selection(); self.canvas.fit_in_view(); self.update_layer_panel()
 
     def flip_image(self, d):
@@ -1274,6 +1324,8 @@ class ImageEditor(QMainWindow):
         self.history.save_state(self.layers, self.active_layer_index)
         for l in self.layers:
             l.image = ImageOps.mirror(l.image) if d == "h" else ImageOps.flip(l.image)
+            if l.mask is not None:
+                l.mask = ImageOps.mirror(l.mask) if d == "h" else ImageOps.flip(l.mask)
         self.canvas.update()
 
     def flatten_image(self):
@@ -1287,14 +1339,10 @@ class ImageEditor(QMainWindow):
         if idx <= 0 or idx >= len(self.layers): return
         self.history.save_state(self.layers, self.active_layer_index)
         top, bot = self.layers[idx], self.layers[idx-1]
-        result = bot.image.copy()
-        if top.visible:
-            img = top.image.copy()
-            if top.opacity < 255:
-                r,g,b,a = img.split(); a = a.point(lambda x: int(x*top.opacity/255))
-                img = Image.merge("RGBA",(r,g,b,a))
-            result = blend_layers(result, img, top.blend_mode)
-        bot.image = result; bot.name = f"{bot.name} + {top.name}"
+        bot.image = composite_layers([bot, top])
+        bot.mask = None
+        bot.clipping = False
+        bot.name = f"{bot.name} + {top.name}"
         del self.layers[idx]; self.set_active_layer_index(idx-1)
         self.update_layer_panel(); self.canvas.update()
 
@@ -1315,7 +1363,10 @@ class ImageEditor(QMainWindow):
     def _do_crop(self, x1, y1, x2, y2):
         if not self.layers: return
         self.history.save_state(self.layers, self.active_layer_index)
-        for l in self.layers: l.image = l.image.crop((x1,y1,x2,y2))
+        for l in self.layers:
+            l.image = l.image.crop((x1,y1,x2,y2))
+            if l.mask is not None:
+                l.mask = l.mask.crop((x1,y1,x2,y2))
         self.canvas.clear_selection(); self.canvas.fit_in_view(); self.update_layer_panel()
 
     # Text

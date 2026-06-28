@@ -100,14 +100,11 @@ def _blend_pixels(base, top, mode: str):
 
 def blend_layers(base: Image.Image, top: Image.Image, mode: str) -> Image.Image:
     if mode == "Normal":
-        result = base.copy()
-        result.paste(top, (0, 0), top)
-        return result
+        return Image.alpha_composite(base.convert("RGBA"), top.convert("RGBA"))
 
     blended = _image_from_float(_blend_pixels(_rgb_float(base), _rgb_float(top), mode))
     _, _, _, top_alpha = top.split()
     result = base.copy()
     blended_rgba = blended.convert("RGBA")
     blended_rgba.putalpha(top_alpha)
-    result.paste(blended_rgba, (0, 0), blended_rgba)
-    return result
+    return Image.alpha_composite(result.convert("RGBA"), blended_rgba)
