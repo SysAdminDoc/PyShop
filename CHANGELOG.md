@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.40 - 2026-06-28
+
+- Added passive plugin discovery for validated `plugins/<plugin>/plugin.json` manifests and a Plugins menu refresh/listing workflow.
+
 ## PyShop v0.1.39 - 2026-06-28
 
 - Added user-scope Windows shell integration for `.pyshop` associations, Explorer image context menus, and command-line file opening.
