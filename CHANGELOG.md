@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.27 - 2026-06-28
+
+- Hardened raster and PSD file I/O with safe pixel-count checks, psd-tools-backed flattened PSD export, and Save/Save As guardrails that prevent accidental layered PSD data loss.
+
 ## PyShop v0.1.26 - 2026-06-28
 
 - Added action macro recording/replay and session workspace presets while preserving the no-keyboard-shortcut action contract.

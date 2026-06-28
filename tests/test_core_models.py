@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from PIL import Image
 
 from pyshop.core import (
@@ -6,6 +7,7 @@ from pyshop.core import (
     DiffHistoryCommand,
     HistoryManager,
     HistoryCommand,
+    ImageOpenError,
     Layer,
     apply_channel_visibility,
     apply_retouch_dab,
@@ -19,10 +21,13 @@ from pyshop.core import (
     iter_brush_dabs,
     iter_intersecting_tile_boxes,
     iter_tile_boxes,
+    load_psd_layers,
     named_background_rgba,
+    open_raster_image,
     paint_brush_dab,
     paint_brush_line,
     paint_brush_stroke,
+    save_flattened_psd,
     selection_mask_bounds,
     smoothed_brush_point,
 )
@@ -237,6 +242,24 @@ def test_apply_channel_visibility_zeros_hidden_color_channels():
     result = apply_channel_visibility(image, {"red": False, "green": True, "blue": False, "alpha": False})
 
     assert result.getpixel((0, 0)) == (0, 20, 0, 255)
+
+
+def test_flattened_psd_save_and_load_round_trip(tmp_path):
+    path = tmp_path / "flat.psd"
+    save_flattened_psd(path, Image.new("RGBA", (2, 2), (10, 20, 30, 255)))
+
+    layers = load_psd_layers(path)
+
+    assert layers[0].image.size == (2, 2)
+    assert layers[0].image.getpixel((0, 0))[3] == 255
+
+
+def test_open_raster_image_rejects_oversized_files(tmp_path):
+    path = tmp_path / "small.png"
+    Image.new("RGBA", (2, 2), (10, 20, 30, 255)).save(path)
+
+    with pytest.raises(ImageOpenError, match="too large"):
+        open_raster_image(path, max_pixels=3)
 
 
 def test_selection_mask_bounds_returns_cropped_extent():
