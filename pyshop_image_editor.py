@@ -1242,6 +1242,28 @@ class ImageEditor(QMainWindow):
         self._act(im, "Crop to Selection", "", self.crop_to_selection)
         self._act(im, "Apply Crop", "", self.apply_crop)
 
+        lm = mb.addMenu("&Layer")
+        self._act(lm, "New Layer...", "", lambda: self.layer_panel.add_layer())
+        self._act(lm, "Duplicate Layer", "", lambda: self.layer_panel.duplicate_layer())
+        self._act(lm, "Delete Layer", "", lambda: self.layer_panel.remove_layer())
+        lm.addSeparator()
+        self._act(lm, "Group Active Layer", "", lambda: self.layer_panel.group_active_layer())
+        self._act(lm, "Layer Mask From Selection", "", lambda: self.layer_panel.add_layer_mask())
+        self._act(lm, "New Adjustment Layer...", "", lambda: self.layer_panel.add_adjustment_layer())
+        self._act(lm, "Toggle Clipping Mask", "", self.toggle_active_clipping)
+        lm.addSeparator()
+        self._act(lm, "Merge Down", "", self.merge_down)
+        self._act(lm, "Flatten Image", "", self.flatten_image)
+
+        tm = mb.addMenu("&Type")
+        self._act(tm, "Text Tool", "", lambda: self.set_tool("text"))
+        self._act(tm, "Insert Text at Origin...", "", lambda: self.insert_text_at(10, 10))
+
+        smenu = mb.addMenu("&Select")
+        self._act(smenu, "Select All", "", self.select_all)
+        self._act(smenu, "Deselect", "", self.deselect)
+        self._act(smenu, "Invert Selection", "", self.invert_selection)
+
         am = mb.addMenu("&Adjustments")
         self._act(am, "&Brightness/Contrast...", "", self.adjust_brightness_contrast)
         self._act(am, "&Hue/Saturation...", "", self.adjust_hue_saturation)
@@ -1251,7 +1273,7 @@ class ImageEditor(QMainWindow):
         self._act(am, "&Auto Contrast", "", self.auto_contrast)
         self._act(am, "Color &Balance...", "", self.color_balance)
 
-        flm = mb.addMenu("F&ilters")
+        flm = mb.addMenu("&Filter")
         bm = flm.addMenu("Blur")
         self._act(bm, "Gaussian Blur...", "", self.gaussian_blur)
         self._act(bm, "Box Blur...", "", self.box_blur)
@@ -1282,6 +1304,11 @@ class ImageEditor(QMainWindow):
         self._act(vm, "Add Vertical Guide...", "", lambda: self.add_guide("vertical"))
         self._act(vm, "Add Horizontal Guide...", "", lambda: self.add_guide("horizontal"))
         self._act(vm, "Clear Guides", "", self.clear_guides)
+
+        self.window_menu = mb.addMenu("&Window")
+
+        hm = mb.addMenu("&Help")
+        self._act(hm, "About PyShop", "", self.show_about)
 
     def _act(self, menu, name, shortcut, cb):
         a = QAction(name, self)
@@ -1399,6 +1426,8 @@ class ImageEditor(QMainWindow):
         self.addDockWidget(Qt.RightDockWidgetArea, infod)
         self.layers_changed.connect(self.refresh_analysis_panels)
         self.active_layer_changed.connect(lambda _index: self.refresh_analysis_panels())
+        for dock in [ld, hd, nd, hgd, infod]:
+            self.window_menu.addAction(dock.toggleViewAction())
 
     def set_tool(self, tool):
         self.current_tool = tool; self.statusBar().showMessage(f"Tool: {tool}")
@@ -1441,6 +1470,15 @@ class ImageEditor(QMainWindow):
     def update_info_panel(self, x, y, color=None):
         if hasattr(self, "info_panel"):
             self.info_panel.update_cursor(x, y, color)
+
+    def toggle_active_clipping(self):
+        layer = self.active_layer()
+        if layer:
+            layer.clipping = not layer.clipping
+            self.notify_layers_changed(); self.canvas.update()
+
+    def show_about(self):
+        QMessageBox.about(self, "About PyShop", f"{APP_DISPLAY_NAME}\nNative Python image editor.")
 
     # Compositing
     def get_composite(self):
