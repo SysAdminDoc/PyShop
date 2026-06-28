@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.13 - 2026-06-28
+
+- Added dynamic brush settings for pressure, smoothing, spacing, scatter, texture, and color jitter, with toolbar controls and core stroke tests.
+
 ## PyShop v0.1.12 - 2026-06-28
 
 - Capped canvas paint work to the visible image extent with viewport bounds and intersecting tile iteration.
