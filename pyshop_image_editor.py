@@ -15,9 +15,12 @@ from pyshop.core import (
     BrushSettings,
     clear_recovery_project,
     Document,
+    DEFAULT_EXPORT_PRESETS,
     HistoryManager,
     Layer,
+    RAW_EXTENSIONS,
     apply_channel_visibility,
+    batch_export_images,
     build_marching_ants_path,
     clone_layer_state,
     composite_layers,
@@ -26,11 +29,13 @@ from pyshop.core import (
     effect_label,
     erase_brush_stroke,
     flattened_document_layers,
+    export_image_with_preset,
     image_document_layers,
     iter_brush_dabs,
     iter_intersecting_tile_boxes,
     is_ora_path,
     is_project_path,
+    is_raw_path,
     load_macro_file,
     load_ora,
     load_project,
@@ -39,8 +44,10 @@ from pyshop.core import (
     open_raster_image,
     paint_brush_stroke,
     PROJECT_FILE_SUFFIX,
+    preset_by_name,
     qcolor_to_rgba,
     selection_mask_bounds,
+    load_raw_image,
     load_psd_layers,
     save_flattened_psd,
     save_image_atomic,
@@ -55,6 +62,9 @@ from pyshop.core import (
 )
 from pyshop.tools import CanvasToolEvent, DEFAULT_TOOL_REGISTRY, build_default_tool_handlers
 from pyshop.ui import CanvasViewport, snap_point_to_guides
+
+
+RAW_FILE_PATTERNS = " ".join(f"*{extension}" for extension in sorted(RAW_EXTENSIONS))
 
 
 from PyQt5.QtWidgets import (
@@ -1365,6 +1375,8 @@ class ImageEditor(QMainWindow):
         self._act(fm, "&Save", "Ctrl+S", self.save_image)
         self._act(fm, "Save &As...", "Ctrl+Shift+S", self.save_image_as)
         self._act(fm, "E&xport PNG...", "", self.export_png)
+        self._act(fm, "Export With Preset...", "", self.export_with_preset)
+        self._act(fm, "Batch Export...", "", self.batch_export)
         self._act(fm, "Export OpenRaster...", "", self.export_ora)
         self._act(fm, "Export Layered PSD...", "", self.export_layered_psd)
         self._act(fm, "Export Flattened PSD...", "", self.export_flattened_psd)
@@ -1857,6 +1869,7 @@ class ImageEditor(QMainWindow):
             "current_path": list(self.current_path),
             "current_path_closed": self.current_path_closed,
             "macro_steps": list(self.macro_steps),
+            "color_profile": self.document.color_profile,
         }
 
     def schedule_autosave(self):
@@ -1948,10 +1961,15 @@ class ImageEditor(QMainWindow):
             self.setWindowTitle(f"{APP_DISPLAY_NAME} - Untitled")
 
     def open_image(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Open Image", "",
-            "PyShop Projects (*.pyshop);;OpenRaster (*.ora);;Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tiff *.webp);;All Files (*)")
+        path, _ = QFileDialog.getOpenFileName(self, "Open Image", "", self.open_file_filter())
         if path:
             self.start_background_job("Opening image", self.open_document_job(path), self.finish_open_document)
+
+    def open_file_filter(self):
+        return (
+            f"PyShop Projects (*.pyshop);;OpenRaster (*.ora);;RAW Images ({RAW_FILE_PATTERNS});;"
+            "Images (*.psd *.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp);;All Files (*)"
+        )
 
     def open_document_job(self, path):
         def job(progress, is_cancelled):
@@ -1967,8 +1985,21 @@ class ImageEditor(QMainWindow):
             if path.lower().endswith(".psd"):
                 layers = load_psd_layers(path)
                 return {"kind": "psd", "path": path, "layers": layers}
+            if is_raw_path(path):
+                image = load_raw_image(path)
+                return {
+                    "kind": "raw",
+                    "path": path,
+                    "layers": image_document_layers(image),
+                    "color_profile": image.info.get("icc_profile"),
+                }
             image = open_raster_image(path)
-            return {"kind": "raster", "path": path, "layers": image_document_layers(image)}
+            return {
+                "kind": "raster",
+                "path": path,
+                "layers": image_document_layers(image),
+                "color_profile": image.info.get("icc_profile"),
+            }
         return job
 
     def finish_open_document(self, result):
@@ -1981,15 +2012,26 @@ class ImageEditor(QMainWindow):
             message = f"Opened PyShop project {path}"
         else:
             self.layers = result["layers"]
-            title_prefix = "Imported PSD" if result["kind"] == "psd" else "Imported OpenRaster" if result["kind"] == "ora" else "Imported Image"
+            title_prefix = (
+                "Imported PSD"
+                if result["kind"] == "psd"
+                else "Imported OpenRaster"
+                if result["kind"] == "ora"
+                else "Imported RAW"
+                if result["kind"] == "raw"
+                else "Imported Image"
+            )
             self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
             self.reset_document_metadata()
+            self.document.color_profile = result.get("color_profile")
             self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
             if result["kind"] == "psd":
                 message = "PSD imported as PyShop layers; save as a PyShop project or export a flattened PSD"
             elif result["kind"] == "ora":
                 report_count = len(result.get("report", []))
                 message = f"OpenRaster imported as PyShop layers ({report_count} compatibility notes)"
+            elif result["kind"] == "raw":
+                message = "RAW imported through sRGB processing; save as a PyShop project or export with a preset"
             else:
                 message = "Raster imported; save as a PyShop project or export a flattened image"
         self.setWindowTitle(f"{title_prefix} - {os.path.basename(path)}")
@@ -2025,9 +2067,16 @@ class ImageEditor(QMainWindow):
                 raise RuntimeError("Save does not write PSD because it would flatten layer metadata. Use Export Flattened PSD instead.")
             if path.lower().endswith(('.jpg','.jpeg')): c = c.convert("RGB")
             progress("Writing image", 75)
-            save_image_atomic(path, c)
+            save_kwargs = self.image_save_kwargs_for_path(path, snapshot)
+            save_image_atomic(path, c, **save_kwargs)
             return {"path": path, "kind": "flattened", "remember_native_path": False}
         return self.start_background_job("Saving image", job, self.finish_save_document)
+
+    def image_save_kwargs_for_path(self, path, snapshot):
+        extension = os.path.splitext(path)[1].lower()
+        if extension in {".png", ".jpg", ".jpeg", ".webp"} and snapshot.get("color_profile"):
+            return {"icc_profile": snapshot["color_profile"]}
+        return {}
 
     def finish_save_document(self, result):
         if result is None:
@@ -2081,6 +2130,62 @@ class ImageEditor(QMainWindow):
                 path += ".psd"
             self.export_flattened_image(path, "PSD")
 
+    def choose_export_preset(self, title):
+        preset_names = [preset.name for preset in DEFAULT_EXPORT_PRESETS]
+        name, accepted = QInputDialog.getItem(self, title, "Preset:", preset_names, 0, False)
+        if not accepted:
+            return None
+        return preset_by_name(name)
+
+    def export_with_preset(self):
+        preset = self.choose_export_preset("Export With Preset")
+        if preset is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Export With Preset", "", f"{preset.name} (*{preset.extension})")
+        if path:
+            self.export_preset_image(path, preset)
+
+    def export_preset_image(self, path, preset):
+        snapshot = self.project_snapshot_for_worker()
+
+        def job(progress, is_cancelled):
+            progress("Compositing preset export", 35)
+            if is_cancelled():
+                return None
+            composite = composite_layers(snapshot["layers"])
+            if composite is None:
+                raise RuntimeError("No image to export.")
+            composite = apply_channel_visibility(composite, snapshot["channel_visibility"])
+            progress("Writing preset export", 80)
+            output_path = export_image_with_preset(path, composite, preset, snapshot.get("color_profile"))
+            return {"path": str(output_path), "format": preset.name}
+        self.start_background_job("Exporting preset", job, self.finish_export_image)
+
+    def batch_export(self):
+        paths, _ = QFileDialog.getOpenFileNames(self, "Batch Export Images", "", self.open_file_filter())
+        if not paths:
+            return
+        preset = self.choose_export_preset("Batch Export Preset")
+        if preset is None:
+            return
+        output_dir = QFileDialog.getExistingDirectory(self, "Batch Export Output Folder", "")
+        if output_dir:
+            self.batch_export_paths(paths, output_dir, preset)
+
+    def batch_export_paths(self, paths, output_dir, preset):
+        def job(progress, is_cancelled):
+            outputs = batch_export_images(paths, output_dir, preset, progress, is_cancelled)
+            if is_cancelled():
+                return None
+            return {"count": len(outputs), "output_dir": output_dir, "format": preset.name}
+        self.start_background_job("Batch exporting", job, self.finish_batch_export)
+
+    def finish_batch_export(self, result):
+        if result is not None:
+            self.statusBar().showMessage(
+                f"Batch exported {result['count']} files with {result['format']} to {result['output_dir']}"
+            )
+
     def export_flattened_image(self, path, format_name):
         snapshot = self.project_snapshot_for_worker()
 
@@ -2096,7 +2201,8 @@ class ImageEditor(QMainWindow):
             if format_name == "PSD":
                 save_flattened_psd(path, composite)
             else:
-                save_image_atomic(path, composite, format_name)
+                save_kwargs = self.image_save_kwargs_for_path(path, snapshot)
+                save_image_atomic(path, composite, format_name, **save_kwargs)
             return {"path": path, "format": format_name}
         self.start_background_job("Exporting image", job, self.finish_export_image)
 

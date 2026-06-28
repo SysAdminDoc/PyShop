@@ -50,7 +50,11 @@ class Layer:
         self.group_expanded = True
         self.vector_shape = None
         self.text_item = None
-        self.image = image.convert("RGBA") if image is not None else Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        if image is not None:
+            self.image = image.convert("RGBA")
+            self.image.info.update(image.info)
+        else:
+            self.image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
 
     def copy(self):
         layer = clone_layer_state(self)

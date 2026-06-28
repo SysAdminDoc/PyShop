@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.38 - 2026-06-28
+
+- Added camera RAW import, document-level color profile preservation, export presets, and batch image conversion.
+
 ## PyShop v0.1.37 - 2026-06-28
 
 - Added practical layered PSD export for pixel, text, and vector layers with opacity, visibility, supported blend modes, masks, and compatibility notes for unsupported PyShop metadata.
