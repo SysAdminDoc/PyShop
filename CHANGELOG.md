@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.18 - 2026-06-28
+
+- Added ruler overlays plus Navigator, Histogram, and Info dock panels with composite previews, RGB histograms, and cursor/document readouts.
+
 ## PyShop v0.1.17 - 2026-06-28
 
 - Added grid and guide overlays, snap-to-grid/guide math, View menu controls, and tests for snapping behavior.
