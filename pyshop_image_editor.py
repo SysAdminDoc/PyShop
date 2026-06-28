@@ -421,6 +421,22 @@ class CanvasWidget(QWidget):
                 painter.drawLine(QPointF(ruler_w - 6, cy), QPointF(ruler_w, cy))
                 painter.drawText(2, int(cy - 2), str(y))
 
+    def _draw_path_preview(self, painter):
+        points = self.editor.current_path
+        if not points:
+            return
+        pen = QPen(QColor("#ff4fd8"), 1.2, Qt.DashLine)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setBrush(QColor("#ff4fd8"))
+        qpoints = [QPointF(x, y) for x, y in points]
+        for point in qpoints:
+            painter.drawEllipse(point, 2.5, 2.5)
+        for index in range(len(qpoints) - 1):
+            painter.drawLine(qpoints[index], qpoints[index + 1])
+        if self.editor.current_path_closed and len(qpoints) > 2:
+            painter.drawLine(qpoints[-1], qpoints[0])
+
     def update(self, *args, **kwargs):
         self.tile_cache.invalidate()
         return super().update(*args, **kwargs)
@@ -496,6 +512,8 @@ class CanvasWidget(QWidget):
             for i in range(len(self._lasso_points) - 1):
                 painter.drawLine(self._lasso_points[i], self._lasso_points[i+1])
 
+        self._draw_path_preview(painter)
+
         # Crop overlay
         if self.crop_rect is not None:
             pen_c = QPen(QColor("#00aaff"), 2.0); pen_c.setCosmetic(True)
@@ -567,6 +585,8 @@ class CanvasWidget(QWidget):
                 self.selection_start = img_pos; self.crop_rect = None; self.drawing = True
             elif tool == "shape":
                 self.selection_start = img_pos; self.shape_rect = None; self.drawing = True
+            elif tool == "pen":
+                self.editor.add_path_point(ix, iy)
             elif tool == "text":
                 self.editor.insert_text_at(ix, iy)
             elif tool == "lasso":
@@ -972,6 +992,27 @@ class ChannelPanel(QWidget):
         self.editor.refresh_analysis_panels()
 
 
+class PathsPanel(QWidget):
+    def __init__(self, editor):
+        super().__init__()
+        self.editor = editor
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(6, 6, 6, 6)
+        self.status = QLabel("Path: 0 points")
+        layout.addWidget(self.status)
+        row = QHBoxLayout()
+        for label, callback in [("Close", self.editor.close_path), ("Select", self.editor.path_to_selection), ("Clear", self.editor.clear_path)]:
+            button = QPushButton(label)
+            button.clicked.connect(callback)
+            row.addWidget(button)
+        layout.addLayout(row)
+        layout.addStretch(1)
+
+    def refresh(self):
+        suffix = " closed" if self.editor.current_path_closed else ""
+        self.status.setText(f"Path: {len(self.editor.current_path)} points{suffix}")
+
+
 # ---- Layer Panel -----------------------------------------------------------
 class LayerPanel(QWidget):
     def __init__(self, editor):
@@ -1238,6 +1279,7 @@ class ImageEditor(QMainWindow):
         self.show_grid = False; self.show_guides = True; self.show_rulers = True; self.snap_enabled = True
         self.grid_size = 64; self.guides = []
         self.channel_visibility = {"red": True, "green": True, "blue": True, "alpha": True}
+        self.current_path = []; self.current_path_closed = False
         self.clone_source = None; self.history = HistoryManager(); self.file_path = None
         self.init_ui(); self.showMaximized()
 
@@ -1492,9 +1534,12 @@ class ImageEditor(QMainWindow):
         self.channel_panel = ChannelPanel(self)
         cd = QDockWidget("Channels", self); cd.setWidget(self.channel_panel); cd.setMinimumWidth(220)
         self.addDockWidget(Qt.RightDockWidgetArea, cd)
+        self.paths_panel = PathsPanel(self)
+        pd = QDockWidget("Paths", self); pd.setWidget(self.paths_panel); pd.setMinimumWidth(220)
+        self.addDockWidget(Qt.RightDockWidgetArea, pd)
         self.layers_changed.connect(self.refresh_analysis_panels)
         self.active_layer_changed.connect(lambda _index: self.refresh_analysis_panels())
-        for dock in [ld, hd, nd, hgd, infod, cd]:
+        for dock in [ld, hd, nd, hgd, infod, cd, pd]:
             self.window_menu.addAction(dock.toggleViewAction())
 
     def set_tool(self, tool):
@@ -1539,6 +1584,35 @@ class ImageEditor(QMainWindow):
         if hasattr(self, "info_panel"):
             self.info_panel.update_cursor(x, y, color)
 
+    def refresh_paths_panel(self):
+        if hasattr(self, "paths_panel"):
+            self.paths_panel.refresh()
+
+    def add_path_point(self, x, y):
+        self.current_path.append((x, y))
+        self.current_path_closed = False
+        self.refresh_paths_panel(); self.canvas.update()
+
+    def close_path(self):
+        if len(self.current_path) >= 3:
+            self.current_path_closed = True
+            self.refresh_paths_panel(); self.canvas.update()
+
+    def clear_path(self):
+        self.current_path = []
+        self.current_path_closed = False
+        self.canvas.clear_selection()
+        self.refresh_paths_panel(); self.canvas.update()
+
+    def path_to_selection(self):
+        if not self.layers or len(self.current_path) < 3:
+            return
+        width, height = self.layers[0].image.size
+        mask = Image.new("L", (width, height), 0)
+        ImageDraw.Draw(mask).polygon(self.current_path, fill=255)
+        self.canvas.set_selection_mask(mask)
+        self.canvas.update()
+
     def toggle_active_clipping(self):
         layer = self.active_layer()
         if layer:
@@ -1569,6 +1643,7 @@ class ImageEditor(QMainWindow):
             self.layers = create_document_layers(w, h, named_background_rgba(bg.currentText()))
             self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = None
             self.guides.clear()
+            self.current_path = []; self.current_path_closed = False; self.refresh_paths_panel()
             self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
             self.setWindowTitle(f"{APP_DISPLAY_NAME} - Untitled")
 
@@ -1581,6 +1656,7 @@ class ImageEditor(QMainWindow):
                 self.layers = image_document_layers(img)
                 self.set_active_layer_index(0); self.history = HistoryManager(); self.file_path = path
                 self.guides.clear()
+                self.current_path = []; self.current_path_closed = False; self.refresh_paths_panel()
                 self.canvas.clear_selection(); self.update_layer_panel(); self.canvas.fit_in_view()
                 self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
             except Exception as e:
