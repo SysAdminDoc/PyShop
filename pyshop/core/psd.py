@@ -1,3 +1,7 @@
+import os
+import tempfile
+from pathlib import Path
+
 from PIL import Image
 
 from .document import MAX_DOCUMENT_PIXELS
@@ -63,6 +67,24 @@ def save_flattened_psd(path, image):
     PSDImage = _require_psd_tools()
 
     try:
-        PSDImage.frompil(image.convert("RGBA")).save(path)
+        psd_image = PSDImage.frompil(image.convert("RGBA"))
+        _save_psd_atomic(path, psd_image)
     except Exception as exc:
         raise PSDExportError(f"Failed to export flattened PSD: {exc}") from exc
+
+
+def _save_psd_atomic(path, psd_image):
+    path = Path(path)
+    if path.parent:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=path.suffix or ".psd", dir=str(path.parent or "."))
+    os.close(fd)
+    try:
+        psd_image.save(temp_name)
+        os.replace(temp_name, path)
+    except Exception:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise

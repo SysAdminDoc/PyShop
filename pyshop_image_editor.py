@@ -13,6 +13,7 @@ from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
 from pyshop.app_info import app_icon_path
 from pyshop.core import (
     BrushSettings,
+    clear_recovery_project,
     Document,
     HistoryManager,
     Layer,
@@ -42,11 +43,14 @@ from pyshop.core import (
     selection_mask_bounds,
     load_psd_layers,
     save_flattened_psd,
+    save_image_atomic,
     save_macro_file,
     save_ora,
     save_project,
     smoothed_brush_point,
     TiledCompositeCache,
+    recovery_project_path,
+    write_error_log,
 )
 from pyshop.tools import CanvasToolEvent, DEFAULT_TOOL_REGISTRY, build_default_tool_handlers
 from pyshop.ui import CanvasViewport, snap_point_to_guides
@@ -364,6 +368,7 @@ class CanvasWidget(QWidget):
     def set_selection_mask(self, mask):
         self.selection_mask = mask
         self.editor.document.mark_dirty()
+        self.editor.schedule_autosave()
         self._update_marching_path()
 
     def canvas_to_image(self, pos):
@@ -834,7 +839,8 @@ class ImageJobWorker(QThread):
             self.progress.emit(self.job_name, 100)
             self.succeeded.emit(result)
         except Exception as exc:
-            self.failed.emit(str(exc))
+            log_path = write_error_log(self.job_name, exc)
+            self.failed.emit(f"{self.job_name} failed: {exc} (log: {log_path})")
 
 
 class NavigatorPanel(QWidget):
@@ -1247,6 +1253,10 @@ class ImageEditor(QMainWindow):
         self.docks = {}
         self.clone_source = None; self.history = HistoryManager()
         self.current_job = None
+        self.autosave_timer = QTimer()
+        self.autosave_timer.setSingleShot(True)
+        self.autosave_timer.setInterval(3000)
+        self.autosave_timer.timeout.connect(self.autosave_recovery_project)
         self.init_ui(); self.showMaximized()
 
     @property
@@ -1349,6 +1359,7 @@ class ImageEditor(QMainWindow):
         fm = mb.addMenu("&File")
         self._act(fm, "&New...", "Ctrl+N", self.new_image)
         self._act(fm, "&Open...", "Ctrl+O", self.open_image)
+        self._act(fm, "Recover Autosave", "", self.recover_autosave_project)
         fm.addSeparator()
         self._act(fm, "&Save", "Ctrl+S", self.save_image)
         self._act(fm, "Save &As...", "Ctrl+Shift+S", self.save_image_as)
@@ -1621,6 +1632,7 @@ class ImageEditor(QMainWindow):
         if self.macro_recording and not self.macro_replaying:
             self.macro_steps.append((command, args))
             self.document.mark_dirty()
+            self.schedule_autosave()
 
     def start_macro_recording(self):
         self.macro_steps = []
@@ -1728,6 +1740,7 @@ class ImageEditor(QMainWindow):
 
     def notify_layers_changed(self):
         self.document.mark_dirty()
+        self.schedule_autosave()
         self.layers_changed.emit()
 
     def update_layer_panel(self): self.notify_layers_changed()
@@ -1843,6 +1856,36 @@ class ImageEditor(QMainWindow):
             "current_path_closed": self.current_path_closed,
             "macro_steps": list(self.macro_steps),
         }
+
+    def schedule_autosave(self):
+        if self.layers and self.document.has_unsaved_changes:
+            self.autosave_timer.start()
+
+    def autosave_recovery_project(self):
+        if not self.layers or not self.document.has_unsaved_changes:
+            return
+        try:
+            path = recovery_project_path()
+            save_project(path, **self.project_snapshot_for_worker())
+            self.statusBar().showMessage(f"Autosaved recovery project to {path}")
+        except Exception as exc:
+            log_path = write_error_log("Autosave recovery", exc)
+            self.statusBar().showMessage(f"Autosave failed (log: {log_path})")
+
+    def recover_autosave_project(self):
+        path = recovery_project_path()
+        if not path.exists():
+            self.statusBar().showMessage("No autosave recovery project found")
+            return
+        try:
+            state = load_project(path)
+            self.apply_project_state(state, str(path))
+            self.file_path = None
+            self.setWindowTitle(f"{APP_DISPLAY_NAME} - Recovered Autosave")
+            self.statusBar().showMessage(f"Recovered autosave project from {path}")
+        except Exception as exc:
+            log_path = write_error_log("Recover autosave", exc)
+            QMessageBox.critical(self, "Error", f"Failed to recover autosave:\n{exc}\n\nLog: {log_path}")
 
     def add_path_point(self, x, y):
         self.current_path.append((x, y))
@@ -1980,7 +2023,7 @@ class ImageEditor(QMainWindow):
                 raise RuntimeError("Save does not write PSD because it would flatten layer metadata. Use Export Flattened PSD instead.")
             if path.lower().endswith(('.jpg','.jpeg')): c = c.convert("RGB")
             progress("Writing image", 75)
-            c.save(path)
+            save_image_atomic(path, c)
             return {"path": path, "kind": "flattened", "remember_native_path": False}
         return self.start_background_job("Saving image", job, self.finish_save_document)
 
@@ -1990,6 +2033,7 @@ class ImageEditor(QMainWindow):
         path = result["path"]
         if result["kind"] == "project":
             self.document.mark_saved()
+            clear_recovery_project()
             if result["remember_native_path"]:
                 self.file_path = path
                 self.setWindowTitle(f"{APP_DISPLAY_NAME} - {os.path.basename(path)}")
@@ -2043,7 +2087,7 @@ class ImageEditor(QMainWindow):
             if format_name == "PSD":
                 save_flattened_psd(path, composite)
             else:
-                composite.save(path, format_name)
+                save_image_atomic(path, composite, format_name)
             return {"path": path, "format": format_name}
         self.start_background_job("Exporting image", job, self.finish_export_image)
 

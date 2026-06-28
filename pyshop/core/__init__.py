@@ -26,6 +26,7 @@ from .document import (
     image_document_layers,
     open_raster_image,
 )
+from .diagnostics import app_data_dir, clear_recovery_project, recovery_project_path, write_error_log
 from .effects import apply_effect, effect_label
 from .history import DiffHistoryCommand, HistoryCommand, HistoryManager, PairedSnapshotCommand
 from .layer import Layer, clone_layer_state
@@ -50,6 +51,7 @@ from .project import (
 )
 from .psd import PSDExportError, PSDImportError, load_psd_layers, save_flattened_psd
 from .retouch import apply_retouch_dab
+from .safeio import save_image_atomic
 from .selection import build_marching_ants_path
 from .tiles import DEFAULT_TILE_SIZE, TileBox, iter_intersecting_tile_boxes, iter_tile_boxes
 from .text import render_text_tile
@@ -79,6 +81,7 @@ __all__ = [
     "TileBox",
     "TiledCompositeCache",
     "Layer",
+    "app_data_dir",
     "apply_adjustment",
     "apply_effect",
     "apply_channel_visibility",
@@ -89,6 +92,7 @@ __all__ = [
     "composite_layers",
     "composite_layers_tile",
     "create_document_layers",
+    "clear_recovery_project",
     "default_channel_visibility",
     "effect_label",
     "erase_brush_dab",
@@ -114,12 +118,15 @@ __all__ = [
     "paint_brush_stroke",
     "qcolor_to_rgba",
     "render_layer_tile",
+    "recovery_project_path",
     "render_text_tile",
     "render_vector_shape_tile",
     "save_flattened_psd",
+    "save_image_atomic",
     "save_macro_file",
     "save_ora",
     "save_project",
     "selection_mask_bounds",
     "smoothed_brush_point",
+    "write_error_log",
 ]

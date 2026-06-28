@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.36 - 2026-06-28
+
+- Added timestamped job error logs, atomic raster/PSD save writes, and autosave recovery project creation/restoration for unsaved work.
+
 ## PyShop v0.1.35 - 2026-06-28
 
 - Added pytest-qt GUI workflow and accessibility regressions for no-shortcut actions, icon labels, layer panel operations, macro failures, dock persistence, import state, save filters, and brush flow.
