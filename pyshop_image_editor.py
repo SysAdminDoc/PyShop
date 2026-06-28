@@ -1280,6 +1280,8 @@ class ImageEditor(QMainWindow):
         self.grid_size = 64; self.guides = []
         self.channel_visibility = {"red": True, "green": True, "blue": True, "alpha": True}
         self.current_path = []; self.current_path_closed = False
+        self.macro_recording = False; self.macro_replaying = False; self.macro_steps = []
+        self.workspace_preset = None; self.docks = {}
         self.clone_source = None; self.history = HistoryManager(); self.file_path = None
         self.init_ui(); self.showMaximized()
 
@@ -1413,6 +1415,15 @@ class ImageEditor(QMainWindow):
         self._act(vm, "Clear Guides", "", self.clear_guides)
 
         self.window_menu = mb.addMenu("&Window")
+        self._act(self.window_menu, "Save Workspace Preset", "", self.save_workspace_preset)
+        self._act(self.window_menu, "Restore Workspace Preset", "", self.restore_workspace_preset)
+        self.window_menu.addSeparator()
+
+        amenu = mb.addMenu("&Actions")
+        self._act(amenu, "Start Macro Recording", "", self.start_macro_recording)
+        self._act(amenu, "Stop Macro Recording", "", self.stop_macro_recording)
+        self._act(amenu, "Replay Macro", "", self.replay_macro)
+        self._act(amenu, "Clear Macro", "", self.clear_macro)
 
         hm = mb.addMenu("&Help")
         self._act(hm, "About PyShop", "", self.show_about)
@@ -1537,13 +1548,75 @@ class ImageEditor(QMainWindow):
         self.paths_panel = PathsPanel(self)
         pd = QDockWidget("Paths", self); pd.setWidget(self.paths_panel); pd.setMinimumWidth(220)
         self.addDockWidget(Qt.RightDockWidgetArea, pd)
+        self.docks = {
+            "Layers": ld,
+            "History": hd,
+            "Navigator": nd,
+            "Histogram": hgd,
+            "Info": infod,
+            "Channels": cd,
+            "Paths": pd,
+        }
         self.layers_changed.connect(self.refresh_analysis_panels)
         self.active_layer_changed.connect(lambda _index: self.refresh_analysis_panels())
-        for dock in [ld, hd, nd, hgd, infod, cd, pd]:
+        for dock in self.docks.values():
             self.window_menu.addAction(dock.toggleViewAction())
 
     def set_tool(self, tool):
-        self.current_tool = tool; self.statusBar().showMessage(f"Tool: {tool}")
+        self.current_tool = tool; self.record_macro_step("set_tool", tool); self.statusBar().showMessage(f"Tool: {tool}")
+
+    def record_macro_step(self, command, *args):
+        if self.macro_recording and not self.macro_replaying:
+            self.macro_steps.append((command, args))
+
+    def start_macro_recording(self):
+        self.macro_steps = []
+        self.macro_recording = True
+        self.statusBar().showMessage("Macro recording started")
+
+    def stop_macro_recording(self):
+        self.macro_recording = False
+        self.statusBar().showMessage(f"Macro recording stopped ({len(self.macro_steps)} steps)")
+
+    def clear_macro(self):
+        self.macro_steps = []
+        self.macro_recording = False
+        self.statusBar().showMessage("Macro cleared")
+
+    def replay_macro(self):
+        if not self.macro_steps:
+            self.statusBar().showMessage("No macro steps recorded")
+            return
+        self.macro_replaying = True
+        try:
+            for command, args in list(self.macro_steps):
+                if command == "set_tool":
+                    self.set_tool(*args)
+                elif command == "set_show_grid":
+                    self.set_show_grid(*args)
+                elif command == "set_show_guides":
+                    self.set_show_guides(*args)
+                elif command == "set_show_rulers":
+                    self.set_show_rulers(*args)
+                elif command == "set_snap_enabled":
+                    self.set_snap_enabled(*args)
+        finally:
+            self.macro_replaying = False
+        self.statusBar().showMessage(f"Replayed {len(self.macro_steps)} macro steps")
+
+    def save_workspace_preset(self):
+        self.workspace_preset = {name: dock.isVisible() for name, dock in self.docks.items()}
+        self.statusBar().showMessage("Workspace preset saved")
+
+    def restore_workspace_preset(self):
+        if not self.workspace_preset:
+            self.statusBar().showMessage("No workspace preset saved")
+            return
+        for name, visible in self.workspace_preset.items():
+            dock = self.docks.get(name)
+            if dock:
+                dock.setVisible(visible)
+        self.statusBar().showMessage("Workspace preset restored")
 
     def set_fg_color(self, c): self.fg_color = c; self.update_color_buttons()
 
@@ -2048,18 +2121,22 @@ class ImageEditor(QMainWindow):
 
     def set_show_grid(self, checked):
         self.show_grid = checked
+        self.record_macro_step("set_show_grid", checked)
         self.canvas.update()
 
     def set_show_guides(self, checked):
         self.show_guides = checked
+        self.record_macro_step("set_show_guides", checked)
         self.canvas.update()
 
     def set_show_rulers(self, checked):
         self.show_rulers = checked
+        self.record_macro_step("set_show_rulers", checked)
         self.canvas.update()
 
     def set_snap_enabled(self, checked):
         self.snap_enabled = checked
+        self.record_macro_step("set_snap_enabled", checked)
 
     def set_grid_size(self):
         value, ok = QInputDialog.getInt(self, "Grid Size", "Pixels:", self.grid_size, 1, 2000, 1)
