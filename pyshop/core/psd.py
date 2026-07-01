@@ -148,7 +148,7 @@ def save_layered_psd(path, layers, max_pixels: int = MAX_DOCUMENT_PIXELS):
                 blend_mode=_blend_mode_constant(layer.blend_mode),
             )
             psd_layer.visible = bool(layer.visible)
-            if layer.mask is not None:
+            if layer.mask is not None and not psd_layer.has_mask():
                 psd_layer.create_mask(layer.mask.convert("L"))
                 if layer.mask_density != 100 or layer.mask_feather:
                     report.append(f"{layer.name}: mask pixels exported; density/feather are PyShop-only")
