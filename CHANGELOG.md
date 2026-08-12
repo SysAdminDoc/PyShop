@@ -1,5 +1,9 @@
 # Changelog
 
+## PyShop v0.1.41 - 2026-08-12
+
+- Archived the research synthesis, phased implementation plan, and Photoshop GUI reference, draining the active roadmap.
+
 ## PyShop v0.1.40 - 2026-06-28
 
 - Added passive plugin discovery for validated `plugins/<plugin>/plugin.json` manifests and a Plugins menu refresh/listing workflow.
