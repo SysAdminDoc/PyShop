@@ -5,7 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PIL import Image
 from PyQt5.QtCore import QPointF, Qt
 from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QToolButton
+from PyQt5.QtWidgets import QPushButton, QToolButton
 
 from pyshop.core import Layer, create_document_layers, named_background_rgba
 from pyshop.tools import CanvasToolEvent
@@ -44,6 +44,56 @@ def test_icon_only_tool_buttons_have_accessible_labels(qtbot):
         default_action = button.defaultAction()
         label = button.accessibleName() or button.toolTip() or (default_action.text() if default_action else "")
         assert label
+
+
+def test_every_registered_tool_uses_a_real_icon(qtbot):
+    editor = make_editor(qtbot)
+
+    actions = [action for action in editor.tool_group.actions()]
+
+    assert actions
+    assert all(not action.icon().isNull() for action in actions)
+
+
+def test_welcome_panel_routes_to_real_entry_actions(qtbot):
+    editor = make_editor(qtbot)
+    panel = editor.canvas.welcome_panel
+    buttons = panel.findChildren(QPushButton)
+
+    assert not panel.isHidden()
+    assert {button.text() for button in buttons} == {"Open image", "New canvas"}
+    assert all(button.accessibleName() for button in buttons)
+
+    install_small_document(editor)
+    editor.canvas.sync_empty_state()
+
+    assert panel.isHidden()
+
+
+def test_tool_options_follow_the_selected_tool(qtbot):
+    editor = make_editor(qtbot)
+
+    def action_for(widget):
+        return next(
+            action
+            for action in editor.options_bar.actions()
+            if hasattr(action, "defaultWidget") and action.defaultWidget() is widget
+        )
+
+    editor.set_tool("brush")
+    assert action_for(editor.size_spin).isVisible()
+    assert not action_for(editor.tolerance_spin).isVisible()
+    assert editor.advanced_options_action.isVisible()
+
+    editor.set_tool("magic_wand")
+    assert not action_for(editor.size_spin).isVisible()
+    assert action_for(editor.tolerance_spin).isVisible()
+    assert not editor.advanced_options_action.isVisible()
+
+    editor.set_tool("move")
+    assert not action_for(editor.size_spin).isVisible()
+    assert not action_for(editor.tolerance_spin).isVisible()
+    assert editor.tool_hint_label.text() == "Reposition the active layer"
 
 
 def test_layer_panel_duplicate_and_remove_workflows(qtbot):

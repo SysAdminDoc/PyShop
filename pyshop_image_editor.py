@@ -4,10 +4,15 @@ PyShop - A Photoshop-like Image Editor
 Built with PyQt5 and Pillow
 """
 
+import multiprocessing
+
+multiprocessing.freeze_support()
+
 import sys
 import os
 import math
 import numpy as np
+import qtawesome as qta
 from PIL import Image, ImageDraw, ImageEnhance, ImageOps, ImageChops
 from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
 from pyshop.app_info import app_icon_path
@@ -93,73 +98,141 @@ from PyQt5.QtGui import (
 # ---- Dark Theme Stylesheet ------------------------------------------------
 DARK_STYLE = """
 QMainWindow, QWidget {
-    background-color: #1e1e1e; color: #cccccc;
-    font-family: 'Segoe UI', sans-serif; font-size: 12px;
+    background-color: #0b1020; color: #d7deed;
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', sans-serif; font-size: 13px;
 }
-QMenuBar { background-color: #2b2b2b; color: #cccccc; border-bottom: 1px solid #3a3a3a; }
-QMenuBar::item:selected { background-color: #3a3a3a; }
-QMenu { background-color: #2b2b2b; color: #cccccc; border: 1px solid #3a3a3a; }
-QMenu::item:selected { background-color: #0078d4; }
-QMenu::separator { height: 1px; background: #3a3a3a; margin: 4px 8px; }
-QToolBar { background-color: #252526; border: 1px solid #3a3a3a; spacing: 2px; padding: 2px; }
+QMenuBar {
+    background-color: #10172a; color: #d7deed;
+    border-bottom: 1px solid #27324a; padding: 2px 5px;
+}
+QMenuBar::item { padding: 5px 8px; border-radius: 5px; }
+QMenuBar::item:selected { background-color: #1b2540; color: #ffffff; }
+QMenu { background-color: #121a2e; color: #d7deed; border: 1px solid #31405f; padding: 6px; }
+QMenu::item { padding: 7px 28px 7px 10px; border-radius: 4px; }
+QMenu::item:selected { background-color: #234a73; color: #ffffff; }
+QMenu::separator { height: 1px; background: #2a3650; margin: 5px 8px; }
+QToolBar {
+    background-color: #10172a; border: none;
+    border-bottom: 1px solid #27324a; spacing: 4px; padding: 5px 6px;
+}
+QToolBar#ToolsToolbar { border-right: 1px solid #27324a; border-bottom: none; padding: 7px 5px; }
 QToolButton {
     background-color: transparent; border: 1px solid transparent;
-    border-radius: 3px; padding: 4px; color: #cccccc; min-width: 28px; min-height: 28px;
+    border-radius: 7px; padding: 5px; color: #cbd5e1; min-width: 30px; min-height: 30px;
 }
-QToolButton:hover { background-color: #3a3a3a; border-color: #4a4a4a; }
-QToolButton:checked { background-color: #0078d4; border-color: #0078d4; }
-QToolButton:pressed { background-color: #005a9e; }
-QDockWidget { color: #cccccc; }
-QDockWidget::title { background-color: #2b2b2b; padding: 6px; border: 1px solid #3a3a3a; }
-QListWidget { background-color: #252526; color: #cccccc; border: 1px solid #3a3a3a; outline: none; }
-QListWidget::item { padding: 4px; border-bottom: 1px solid #2a2a2a; }
-QListWidget::item:selected { background-color: #0078d4; }
-QListWidget::item:hover { background-color: #2a2d2e; }
+QToolButton:hover { background-color: #1b2945; border-color: #31405f; color: #ffffff; }
+QToolButton:checked { background-color: #153e5a; border-color: #22d3ee; color: #ffffff; }
+QToolButton:pressed { background-color: #1e4f73; }
+QToolButton#AdvancedOptionsButton { padding: 4px 10px; min-width: 78px; }
+QDockWidget { color: #d7deed; }
+QDockWidget::title {
+    background-color: #121a2e; padding: 8px 10px;
+    border-top: 1px solid #27324a; border-bottom: 1px solid #27324a;
+    font-weight: 600;
+}
+QListWidget { background-color: #0f1628; color: #d7deed; border: 1px solid #27324a; outline: none; }
+QListWidget::item { padding: 6px 7px; border-bottom: 1px solid #18223a; }
+QListWidget::item:selected { background-color: #176a91; color: #ffffff; }
+QListWidget::item:hover { background-color: #17233c; }
 QPushButton {
-    background-color: #333333; color: #cccccc; border: 1px solid #3a3a3a;
-    border-radius: 3px; padding: 5px 12px; min-height: 22px;
+    background-color: #18233a; color: #d7deed; border: 1px solid #31405f;
+    border-radius: 7px; padding: 6px 13px; min-height: 24px;
 }
-QPushButton:hover { background-color: #3a3a3a; border-color: #4a4a4a; }
-QPushButton:pressed { background-color: #0078d4; }
-QSlider::groove:horizontal { height: 4px; background: #3a3a3a; border-radius: 2px; }
+QPushButton:hover { background-color: #213252; border-color: #4b638f; color: #ffffff; }
+QPushButton:pressed { background-color: #244765; }
+QPushButton#PrimaryButton {
+    background-color: #0891b2; border-color: #22d3ee; color: #ffffff;
+    font-weight: 600; padding: 9px 22px; min-width: 132px;
+}
+QPushButton#PrimaryButton:hover { background-color: #0ea5c6; }
+QPushButton#SecondaryButton { padding: 9px 22px; min-width: 132px; font-weight: 600; }
+QSlider::groove:horizontal { height: 4px; background: #2b3853; border-radius: 2px; }
 QSlider::handle:horizontal {
-    background: #0078d4; width: 14px; height: 14px; margin: -5px 0; border-radius: 7px;
+    background: #22d3ee; width: 14px; height: 14px; margin: -5px 0; border-radius: 7px;
 }
-QSlider::handle:horizontal:hover { background: #1a8cff; }
+QSlider::handle:horizontal:hover { background: #67e8f9; }
 QSpinBox, QDoubleSpinBox, QComboBox, QLineEdit {
-    background-color: #333333; color: #cccccc; border: 1px solid #3a3a3a;
-    border-radius: 3px; padding: 3px 6px;
+    background-color: #121a2e; color: #e7edf7; border: 1px solid #31405f;
+    border-radius: 5px; padding: 4px 7px;
 }
 QComboBox::drop-down { border: none; width: 20px; }
 QComboBox QAbstractItemView {
-    background-color: #2b2b2b; color: #cccccc;
-    selection-background-color: #0078d4; border: 1px solid #3a3a3a;
+    background-color: #121a2e; color: #d7deed;
+    selection-background-color: #176a91; border: 1px solid #31405f;
 }
-QScrollBar:vertical { background: #1e1e1e; width: 12px; border: none; }
-QScrollBar::handle:vertical { background: #3a3a3a; min-height: 20px; border-radius: 4px; margin: 2px; }
-QScrollBar::handle:vertical:hover { background: #4a4a4a; }
+QScrollBar:vertical { background: #0b1020; width: 12px; border: none; }
+QScrollBar::handle:vertical { background: #34445f; min-height: 24px; border-radius: 4px; margin: 2px; }
+QScrollBar::handle:vertical:hover { background: #4b638f; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-QScrollBar:horizontal { background: #1e1e1e; height: 12px; border: none; }
-QScrollBar::handle:horizontal { background: #3a3a3a; min-width: 20px; border-radius: 4px; margin: 2px; }
-QScrollBar::handle:horizontal:hover { background: #4a4a4a; }
+QScrollBar:horizontal { background: #0b1020; height: 12px; border: none; }
+QScrollBar::handle:horizontal { background: #34445f; min-width: 24px; border-radius: 4px; margin: 2px; }
+QScrollBar::handle:horizontal:hover { background: #4b638f; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
-QStatusBar { background-color: #007acc; color: white; border: none; }
-QLabel { color: #cccccc; }
-QCheckBox { color: #cccccc; spacing: 6px; }
-QCheckBox::indicator { width: 14px; height: 14px; border: 1px solid #555; border-radius: 2px; background: #333; }
-QCheckBox::indicator:checked { background: #0078d4; border-color: #0078d4; }
-QGroupBox { color: #cccccc; border: 1px solid #3a3a3a; border-radius: 4px; margin-top: 8px; padding-top: 12px; }
+QStatusBar { background-color: #0f1628; color: #aebbd0; border-top: 1px solid #27324a; padding: 2px 6px; }
+QLabel { color: #d7deed; background-color: transparent; }
+QLabel#ToolContextLabel { color: #ffffff; font-weight: 600; padding: 0 8px 0 2px; }
+QLabel#ToolHintLabel { color: #8291ab; padding-left: 4px; }
+QCheckBox { color: #c7d1e2; spacing: 7px; background-color: transparent; }
+QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #536584; border-radius: 3px; background: #121a2e; }
+QCheckBox::indicator:checked { background: #0891b2; border-color: #22d3ee; }
+QGroupBox { color: #d7deed; border: 1px solid #2b3853; border-radius: 6px; margin-top: 8px; padding-top: 12px; }
 QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
-QTabWidget::pane { border: 1px solid #3a3a3a; background: #1e1e1e; }
-QTabBar::tab { background: #252526; color: #999; padding: 6px 14px; border: 1px solid #3a3a3a; border-bottom: none; }
-QTabBar::tab:selected { background: #1e1e1e; color: #fff; }
-QTabBar::tab:hover { background: #2d2d2d; }
+QTabWidget::pane { border: 1px solid #27324a; background: #0b1020; }
+QTabBar::tab { background: #10172a; color: #93a2bb; padding: 7px 15px; border: 1px solid #27324a; border-bottom: none; }
+QTabBar::tab:selected { background: #0b1020; color: #ffffff; border-top: 2px solid #22d3ee; }
+QTabBar::tab:hover { background: #17233c; }
+QFrame#WelcomeCard {
+    background-color: #10182b; border: 1px solid #334563; border-radius: 18px;
+}
+QLabel#WelcomeEyebrow { color: #5ee5f6; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+QLabel#WelcomeTitle { color: #ffffff; font-size: 27px; font-weight: 650; }
+QLabel#WelcomeCopy { color: #aebbd0; font-size: 14px; }
+QLabel#WelcomeFormats { color: #7687a4; font-size: 11px; }
 """
 
 
 # ---- Tool Icon Generator ---------------------------------------------------
+TOOL_ICON_NAMES = {
+    "move": "fa5s.arrows-alt",
+    "select_rect": "fa5s.vector-square",
+    "select_ellipse": "fa5s.circle",
+    "lasso": "mdi6.lasso",
+    "object_select": "fa5s.object-group",
+    "crop": "fa5s.crop-alt",
+    "eyedropper": "fa5s.eye-dropper",
+    "healing": "fa5s.band-aid",
+    "brush": "fa5s.paint-brush",
+    "clone_stamp": "fa5s.stamp",
+    "eraser": "fa5s.eraser",
+    "fill": "fa5s.fill-drip",
+    "gradient": "mdi6.gradient-horizontal",
+    "blur": "mdi6.blur",
+    "sharpen": "fa5s.bullseye",
+    "smudge": "fa5s.hand-paper",
+    "dodge": "fa5s.sun",
+    "burn": "fa5s.fire",
+    "sponge": "mdi6.water-opacity",
+    "pen": "fa5s.pen-nib",
+    "text": "fa5s.font",
+    "shape": "fa5s.shapes",
+    "hand": "fa5s.hand-paper",
+    "zoom": "fa5s.search-plus",
+    "magic_wand": "fa5s.magic",
+}
+
+
 def make_tool_icon(tool_id, size=24):
-    """Generate a crisp QPainter-drawn icon for each tool."""
+    """Return a consistent icon, with the original painter set as a fallback."""
+    icon_name = TOOL_ICON_NAMES.get(tool_id)
+    if icon_name:
+        return qta.icon(
+            icon_name,
+            color="#aebbd0",
+            color_active="#ffffff",
+            color_disabled="#536584",
+            scale_factor=0.72,
+        )
+
     pix = QPixmap(size, size)
     pix.fill(Qt.transparent)
     p = QPainter(pix)
@@ -309,6 +382,69 @@ def make_tool_icon(tool_id, size=24):
     return QIcon(pix)
 
 
+class WelcomePanel(QFrame):
+    """First-run surface with real entry points into the editing workflow."""
+
+    def __init__(self, editor, parent=None):
+        super().__init__(parent)
+        self.setObjectName("WelcomeCard")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setFixedWidth(510)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(36, 30, 36, 30)
+        layout.setSpacing(14)
+
+        header = QHBoxLayout()
+        header.setSpacing(16)
+        icon = QLabel()
+        icon.setFixedSize(70, 70)
+        icon.setAccessibleName("PyShop application icon")
+        pixmap = QPixmap(str(app_icon_path()))
+        if not pixmap.isNull():
+            icon.setPixmap(pixmap.scaled(70, 70, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        header.addWidget(icon, 0, Qt.AlignTop)
+
+        identity = QVBoxLayout()
+        identity.setSpacing(4)
+        eyebrow = QLabel(APP_DISPLAY_NAME.upper())
+        eyebrow.setObjectName("WelcomeEyebrow")
+        title = QLabel("Start a new edit")
+        title.setObjectName("WelcomeTitle")
+        identity.addWidget(eyebrow)
+        identity.addWidget(title)
+        header.addLayout(identity, 1)
+        layout.addLayout(header)
+
+        copy = QLabel(
+            "Open a photo, layered project, RAW file, PSD, or OpenRaster document. "
+            "Your work stays on this computer."
+        )
+        copy.setObjectName("WelcomeCopy")
+        copy.setWordWrap(True)
+        copy.setAccessibleName("PyShop welcome information")
+        layout.addWidget(copy)
+
+        actions = QHBoxLayout()
+        actions.setSpacing(10)
+        open_button = QPushButton("Open image")
+        open_button.setObjectName("PrimaryButton")
+        open_button.setAccessibleName("Open an image or project")
+        open_button.clicked.connect(editor.open_image)
+        new_button = QPushButton("New canvas")
+        new_button.setObjectName("SecondaryButton")
+        new_button.setAccessibleName("Create a new canvas")
+        new_button.clicked.connect(editor.new_image)
+        actions.addWidget(open_button)
+        actions.addWidget(new_button)
+        actions.addStretch(1)
+        layout.addLayout(actions)
+
+        formats = QLabel("PNG   JPEG   WebP   TIFF   RAW   PSD   ORA   .pyshop")
+        formats.setObjectName("WelcomeFormats")
+        layout.addWidget(formats)
+
+
 # ---- Canvas Widget ---------------------------------------------------------
 class CanvasWidget(QWidget):
     color_picked = pyqtSignal(QColor)
@@ -342,6 +478,27 @@ class CanvasWidget(QWidget):
         self.march_timer = QTimer()
         self.march_timer.timeout.connect(self._march_tick)
         self.march_timer.start(100)
+
+        self.welcome_panel = WelcomePanel(editor, self)
+        self.welcome_panel.show()
+        self._position_welcome_panel()
+
+    def _position_welcome_panel(self):
+        self.welcome_panel.adjustSize()
+        x = max(24, (self.width() - self.welcome_panel.width()) // 2)
+        y = max(36, (self.height() - self.welcome_panel.height()) // 2 - 18)
+        self.welcome_panel.move(x, y)
+
+    def sync_empty_state(self):
+        empty = not self.editor.layers
+        self.welcome_panel.setVisible(empty)
+        if empty:
+            self._position_welcome_panel()
+            self.welcome_panel.raise_()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_welcome_panel()
 
     @property
     def zoom(self):
@@ -457,13 +614,13 @@ class CanvasWidget(QWidget):
             return
         ruler_h = 22
         ruler_w = 36
-        painter.fillRect(0, 0, self.width(), ruler_h, QColor("#252526"))
-        painter.fillRect(0, 0, ruler_w, self.height(), QColor("#252526"))
-        painter.setPen(QColor("#777"))
+        painter.fillRect(0, 0, self.width(), ruler_h, QColor("#10172a"))
+        painter.fillRect(0, 0, ruler_w, self.height(), QColor("#10172a"))
+        painter.setPen(QColor("#405170"))
         painter.drawLine(0, ruler_h, self.width(), ruler_h)
         painter.drawLine(ruler_w, 0, ruler_w, self.height())
         painter.setFont(QFont("Segoe UI", 7))
-        painter.setPen(QColor("#bdbdbd"))
+        painter.setPen(QColor("#aebbd0"))
         step = 100 if self.zoom >= 0.5 else 250
         for x in range(0, doc_width + 1, step):
             cx = self.image_to_canvas(QPointF(x, 0)).x()
@@ -497,14 +654,12 @@ class CanvasWidget(QWidget):
         return super().update(*args, **kwargs)
 
     def paintEvent(self, event):
+        self.sync_empty_state()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        painter.fillRect(self.rect(), QColor("#1a1a1a"))
+        painter.fillRect(self.rect(), QColor("#080d18"))
 
         if not self.editor.layers:
-            painter.setPen(QColor("#555"))
-            painter.setFont(QFont("Segoe UI", 16))
-            painter.drawText(self.rect(), Qt.AlignCenter, "Open or create an image to begin")
             painter.end()
             return
 
@@ -538,6 +693,12 @@ class CanvasWidget(QWidget):
 
         # ---- Marching Ants ----
         if self.marching_ants_path is not None:
+            pen_accent = QPen(QColor(34, 211, 238, 180), 2.5)
+            pen_accent.setCosmetic(True)
+            painter.setPen(pen_accent)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawPath(self.marching_ants_path)
+
             pen_black = QPen(QColor(0, 0, 0), 1.0)
             pen_black.setCosmetic(True)
             painter.setPen(pen_black)
@@ -552,6 +713,9 @@ class CanvasWidget(QWidget):
             painter.drawPath(self.marching_ants_path)
 
         elif self.selection_rect is not None:
+            pen_accent = QPen(QColor(34, 211, 238, 180), 2.5); pen_accent.setCosmetic(True)
+            painter.setPen(pen_accent); painter.setBrush(Qt.NoBrush)
+            painter.drawRect(self.selection_rect)
             pen_b = QPen(QColor(0,0,0), 1.0); pen_b.setCosmetic(True)
             painter.setPen(pen_b); painter.setBrush(Qt.NoBrush)
             painter.drawRect(self.selection_rect)
@@ -1019,14 +1183,27 @@ class LayerPanel(QWidget):
 
         self.layer_list = QListWidget()
         self.layer_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.layer_list.setIconSize(QSize(16, 16))
         self.layer_list.currentRowChanged.connect(self.on_layer_selected)
         self.layer_list.model().rowsMoved.connect(self.on_layers_reordered)
         layout.addWidget(self.layer_list)
 
         bl = QHBoxLayout()
-        for t, cb in [("+", self.add_layer), ("-", self.remove_layer),
-                       ("Dup", self.duplicate_layer), ("Up", self.move_up), ("Dn", self.move_down)]:
-            b = QPushButton(t); b.setFixedWidth(40); b.clicked.connect(cb); bl.addWidget(b)
+        for icon_name, label, callback in [
+            ("fa5s.plus", "Add layer", self.add_layer),
+            ("fa5s.trash-alt", "Delete layer", self.remove_layer),
+            ("fa5s.clone", "Duplicate layer", self.duplicate_layer),
+            ("fa5s.arrow-up", "Move layer up", self.move_up),
+            ("fa5s.arrow-down", "Move layer down", self.move_down),
+        ]:
+            button = QToolButton()
+            button.setIcon(qta.icon(icon_name, color="#aebbd0", scale_factor=0.68))
+            button.setFixedSize(38, 34)
+            button.setToolTip(label)
+            button.setAccessibleName(label)
+            button.clicked.connect(callback)
+            bl.addWidget(button)
+        bl.addStretch(1)
         layout.addLayout(bl)
 
         vl = QHBoxLayout()
@@ -1039,9 +1216,12 @@ class LayerPanel(QWidget):
         layout.addLayout(vl)
 
         ml = QHBoxLayout()
-        self.group_btn = QPushButton("Group"); self.group_btn.clicked.connect(self.group_active_layer); ml.addWidget(self.group_btn)
-        self.adjustment_btn = QPushButton("Adj"); self.adjustment_btn.clicked.connect(self.add_adjustment_layer); ml.addWidget(self.adjustment_btn)
-        self.mask_btn = QPushButton("Mask"); self.mask_btn.clicked.connect(self.add_layer_mask); ml.addWidget(self.mask_btn)
+        self.group_btn = self._icon_button("fa5s.layer-group", "Group active layer", self.group_active_layer)
+        self.adjustment_btn = self._icon_button("fa5s.sliders-h", "Add adjustment layer", self.add_adjustment_layer)
+        self.mask_btn = self._icon_button("fa5s.mask", "Add layer mask", self.add_layer_mask)
+        ml.addWidget(self.group_btn)
+        ml.addWidget(self.adjustment_btn)
+        ml.addWidget(self.mask_btn)
         ml.addWidget(QLabel("Density:"))
         self.mask_density_slider = QSlider(Qt.Horizontal); self.mask_density_slider.setRange(0, 100); self.mask_density_slider.setValue(100)
         self.mask_density_slider.valueChanged.connect(self.on_mask_density_change); ml.addWidget(self.mask_density_slider)
@@ -1052,11 +1232,20 @@ class LayerPanel(QWidget):
         self.mask_feather_spin.valueChanged.connect(self.on_mask_feather_change); fl.addWidget(self.mask_feather_spin)
         layout.addLayout(fl)
 
+    @staticmethod
+    def _icon_button(icon_name, label, callback):
+        button = QToolButton()
+        button.setIcon(qta.icon(icon_name, color="#aebbd0", scale_factor=0.68))
+        button.setFixedSize(38, 34)
+        button.setToolTip(label)
+        button.setAccessibleName(label)
+        button.clicked.connect(callback)
+        return button
+
     def refresh(self):
         self.layer_list.blockSignals(True); self.layer_list.clear()
         for i, layer in enumerate(reversed(self.editor.layers)):
             idx = len(self.editor.layers) - 1 - i
-            vis = "V " if layer.visible else "  "
             lock = " [L]" if layer.locked else ""
             mask = " [M]" if layer.mask is not None else ""
             clip = " [C]" if layer.clipping else ""
@@ -1066,7 +1255,12 @@ class LayerPanel(QWidget):
             vector = " [V]" if layer.vector_shape else ""
             text = " [T]" if layer.text_item else ""
             prefix = "  " if layer.group_id and not layer.is_group else ""
-            item = QListWidgetItem(f"{prefix}{vis}{layer.name}{lock}{mask}{clip}{adjustment}{effect}{group}{vector}{text}")
+            visibility_icon = "fa5s.eye" if layer.visible else "fa5s.eye-slash"
+            visibility_color = "#67e8f9" if layer.visible else "#65748d"
+            item = QListWidgetItem(
+                qta.icon(visibility_icon, color=visibility_color, scale_factor=0.72),
+                f"{prefix}{layer.name}{lock}{mask}{clip}{adjustment}{effect}{group}{vector}{text}",
+            )
             item.setData(Qt.UserRole, idx)
             self.layer_list.addItem(item)
         active = self.editor.active_layer_index
@@ -1362,16 +1556,19 @@ class ImageEditor(QMainWindow):
     def init_ui(self):
         self.canvas = CanvasWidget(self)
         self.canvas.color_picked.connect(self.set_fg_color)
+        self.layers_changed.connect(self.canvas.sync_empty_state)
         self.setCentralWidget(self.canvas)
         self.create_menus(); self.create_toolbars(); self.create_panels()
         self.create_job_status_widgets()
         self.refresh_plugins(silent=True)
         self.restore_workspace_preset(silent=True)
+        self.statusBar().setFixedHeight(30)
+        self.canvas.sync_empty_state()
         self.statusBar().showMessage("Ready")
 
     def create_menus(self):
         mb = self.menuBar()
-        fm = mb.addMenu("&File")
+        fm = mb.addMenu("File")
         self._act(fm, "&New...", "Ctrl+N", self.new_image)
         self._act(fm, "&Open...", "Ctrl+O", self.open_image)
         self._act(fm, "Recover Autosave", "", self.recover_autosave_project)
@@ -1389,7 +1586,7 @@ class ImageEditor(QMainWindow):
         fm.addSeparator()
         self._act(fm, "E&xit", "Ctrl+Q", self.close)
 
-        em = mb.addMenu("&Edit")
+        em = mb.addMenu("Edit")
         self._act(em, "&Undo", "Ctrl+Z", self.undo)
         self._act(em, "&Redo", "Ctrl+Y", self.redo)
         em.addSeparator()
@@ -1402,7 +1599,7 @@ class ImageEditor(QMainWindow):
         self._act(em, "&Deselect", "Ctrl+D", self.deselect)
         self._act(em, "&Invert Selection", "Ctrl+Shift+I", self.invert_selection)
 
-        im = mb.addMenu("&Image")
+        im = mb.addMenu("Image")
         self._act(im, "&Resize Canvas...", "", self.resize_canvas)
         self._act(im, "Resize &Image...", "", self.resize_image)
         im.addSeparator()
@@ -1419,7 +1616,7 @@ class ImageEditor(QMainWindow):
         self._act(im, "Crop to Selection", "", self.crop_to_selection)
         self._act(im, "Apply Crop", "", self.apply_crop)
 
-        lm = mb.addMenu("&Layer")
+        lm = mb.addMenu("Layer")
         self._act(lm, "New Layer...", "", lambda: self.layer_panel.add_layer())
         self._act(lm, "Duplicate Layer", "", lambda: self.layer_panel.duplicate_layer())
         self._act(lm, "Delete Layer", "", lambda: self.layer_panel.remove_layer())
@@ -1432,16 +1629,16 @@ class ImageEditor(QMainWindow):
         self._act(lm, "Merge Down", "", self.merge_down)
         self._act(lm, "Flatten Image", "", self.flatten_image)
 
-        tm = mb.addMenu("&Type")
+        tm = mb.addMenu("Type")
         self._act(tm, "Text Tool", "", lambda: self.set_tool("text"))
         self._act(tm, "Insert Text at Origin...", "", lambda: self.insert_text_at(10, 10))
 
-        smenu = mb.addMenu("&Select")
+        smenu = mb.addMenu("Select")
         self._act(smenu, "Select All", "", self.select_all)
         self._act(smenu, "Deselect", "", self.deselect)
         self._act(smenu, "Invert Selection", "", self.invert_selection)
 
-        am = mb.addMenu("&Adjustments")
+        am = mb.addMenu("Adjustments")
         self._act(am, "&Brightness/Contrast...", "", self.adjust_brightness_contrast)
         self._act(am, "&Hue/Saturation...", "", self.adjust_hue_saturation)
         self._act(am, "&Levels...", "", self.adjust_levels)
@@ -1450,7 +1647,7 @@ class ImageEditor(QMainWindow):
         self._act(am, "&Auto Contrast", "", self.auto_contrast)
         self._act(am, "Color &Balance...", "", self.color_balance)
 
-        flm = mb.addMenu("&Filter")
+        flm = mb.addMenu("Filter")
         bm = flm.addMenu("Blur")
         self._act(bm, "Gaussian Blur...", "", self.gaussian_blur)
         self._act(bm, "Box Blur...", "", self.box_blur)
@@ -1470,7 +1667,7 @@ class ImageEditor(QMainWindow):
         self._act(flm, "Edit Active Effect Layer...", "", self.edit_active_effect_layer)
         self._act(flm, "Rasterize Active Effect Down", "", self.rasterize_active_effect_down)
 
-        vm = mb.addMenu("&View")
+        vm = mb.addMenu("View")
         self._act(vm, "Fit in &Window", "Ctrl+0", self.canvas.fit_in_view)
         self._act(vm, "Zoom &In", "Ctrl+=", lambda: self._zoom(1.25))
         self._act(vm, "Zoom &Out", "Ctrl+-", lambda: self._zoom(0.8))
@@ -1485,12 +1682,12 @@ class ImageEditor(QMainWindow):
         self._act(vm, "Add Horizontal Guide...", "", lambda: self.add_guide("horizontal"))
         self._act(vm, "Clear Guides", "", self.clear_guides)
 
-        self.window_menu = mb.addMenu("&Window")
+        self.window_menu = mb.addMenu("Window")
         self._act(self.window_menu, "Save Workspace Preset", "", self.save_workspace_preset)
         self._act(self.window_menu, "Restore Workspace Preset", "", self.restore_workspace_preset)
         self.window_menu.addSeparator()
 
-        amenu = mb.addMenu("&Actions")
+        amenu = mb.addMenu("Actions")
         self._act(amenu, "Start Macro Recording", "", self.start_macro_recording)
         self._act(amenu, "Stop Macro Recording", "", self.stop_macro_recording)
         self._act(amenu, "Replay Macro", "", self.replay_macro)
@@ -1498,18 +1695,18 @@ class ImageEditor(QMainWindow):
         self._act(amenu, "Load Macro...", "", self.load_macro)
         self._act(amenu, "Clear Macro", "", self.clear_macro)
 
-        self.plugins_menu = mb.addMenu("&Plugins")
+        self.plugins_menu = mb.addMenu("Plugins")
         self.rebuild_plugins_menu()
 
-        hm = mb.addMenu("&Help")
+        hm = mb.addMenu("Help")
         self._act(hm, "About PyShop", "", self.show_about)
 
     def _act(self, menu, name, shortcut, cb):
-        a = QAction(name, self)
+        a = QAction(name.replace("&", ""), self)
         a.triggered.connect(cb); menu.addAction(a); return a
 
     def _check_act(self, menu, name, checked, cb):
-        action = QAction(name, self)
+        action = QAction(name.replace("&", ""), self)
         action.setCheckable(True)
         action.setChecked(checked)
         action.toggled.connect(cb)
@@ -1537,71 +1734,121 @@ class ImageEditor(QMainWindow):
             if tool.tool_id == "brush": a.setChecked(True)
 
         self.tool_bar.addSeparator()
-        self.fg_btn = QPushButton(); self.fg_btn.setFixedSize(32,32)
+        self.fg_btn = QPushButton(); self.fg_btn.setFixedSize(34,34)
         self.fg_btn.setToolTip("Foreground Color"); self.fg_btn.setAccessibleName("Foreground Color"); self.fg_btn.clicked.connect(self.pick_fg_color)
         self.tool_bar.addWidget(self.fg_btn)
-        self.bg_btn = QPushButton(); self.bg_btn.setFixedSize(32,32)
+        self.bg_btn = QPushButton(); self.bg_btn.setFixedSize(34,34)
         self.bg_btn.setToolTip("Background Color"); self.bg_btn.setAccessibleName("Background Color"); self.bg_btn.clicked.connect(self.pick_bg_color)
         self.tool_bar.addWidget(self.bg_btn)
         self.update_color_buttons()
-        sb = QPushButton("Swap"); sb.setFixedWidth(36); sb.setToolTip("Swap Colors")
-        sb.clicked.connect(self.swap_colors)
-        self.tool_bar.addWidget(sb)
+        swap_button = QToolButton()
+        swap_button.setIcon(qta.icon("fa5s.exchange-alt", color="#aebbd0", scale_factor=0.7))
+        swap_button.setFixedSize(34, 34)
+        swap_button.setToolTip("Swap Colors")
+        swap_button.setAccessibleName("Swap foreground and background colors")
+        swap_button.clicked.connect(self.swap_colors)
+        self.tool_bar.addWidget(swap_button)
 
-        self.options_bar = QToolBar("Tool Options"); self.options_bar.setMovable(False)
+        self.options_bar = QToolBar("Tool Options")
+        self.options_bar.setMovable(False)
         self.options_bar.setObjectName("ToolOptionsToolbar")
+        self.options_bar.setIconSize(QSize(18, 18))
         self.addToolBar(Qt.TopToolBarArea, self.options_bar)
-        self.options_bar.addWidget(QLabel("  Size: "))
+
+        self.tool_context_label = QLabel()
+        self.tool_context_label.setObjectName("ToolContextLabel")
+        self.options_bar.addWidget(self.tool_context_label)
+        self.option_bindings = []
+
+        def add_option(label, widget, tool_ids, advanced=False):
+            label_widget = QLabel(label)
+            label_action = self.options_bar.addWidget(label_widget)
+            widget_action = self.options_bar.addWidget(widget)
+            binding = (frozenset(tool_ids), advanced)
+            self.option_bindings.append((label_action, *binding))
+            self.option_bindings.append((widget_action, *binding))
+
+        brush_tools = {
+            "brush", "eraser", "clone_stamp", "healing", "blur",
+            "sharpen_tool", "smudge", "dodge", "burn", "sponge",
+        }
+        dynamics_tools = {"brush", "eraser", "clone_stamp"}
+        opacity_tools = brush_tools | {"fill", "gradient"}
+
         self.size_spin = QSpinBox(); self.size_spin.setRange(1,500); self.size_spin.setValue(self.brush_size)
         self.size_spin.valueChanged.connect(lambda v: setattr(self, 'brush_size', v))
-        self.options_bar.addWidget(self.size_spin)
-        self.options_bar.addWidget(QLabel("  Opacity: "))
+        self.size_spin.setAccessibleName("Tool size")
+        add_option("Size", self.size_spin, brush_tools)
         self.opacity_spin = QSpinBox(); self.opacity_spin.setRange(0,100); self.opacity_spin.setValue(100)
         self.opacity_spin.setSuffix("%")
         self.opacity_spin.valueChanged.connect(lambda v: setattr(self, 'brush_opacity', int(v*255/100)))
-        self.options_bar.addWidget(self.opacity_spin)
-        self.options_bar.addWidget(QLabel("  Spacing: "))
+        self.opacity_spin.setAccessibleName("Tool opacity")
+        add_option("Opacity", self.opacity_spin, opacity_tools)
         self.spacing_spin = QSpinBox(); self.spacing_spin.setRange(1,300); self.spacing_spin.setValue(self.brush_spacing)
         self.spacing_spin.setSuffix("%")
         self.spacing_spin.valueChanged.connect(lambda v: setattr(self, 'brush_spacing', v))
-        self.options_bar.addWidget(self.spacing_spin)
-        self.options_bar.addWidget(QLabel("  Smooth: "))
+        self.spacing_spin.setAccessibleName("Brush spacing")
+        add_option("Spacing", self.spacing_spin, dynamics_tools)
         self.smoothing_spin = QSpinBox(); self.smoothing_spin.setRange(0,95); self.smoothing_spin.setValue(self.brush_smoothing)
         self.smoothing_spin.setSuffix("%")
         self.smoothing_spin.valueChanged.connect(lambda v: setattr(self, 'brush_smoothing', v))
-        self.options_bar.addWidget(self.smoothing_spin)
-        self.options_bar.addWidget(QLabel("  Scatter: "))
+        self.smoothing_spin.setAccessibleName("Brush smoothing")
+        add_option("Smooth", self.smoothing_spin, dynamics_tools)
+
+        self.advanced_options_button = QToolButton()
+        self.advanced_options_button.setObjectName("AdvancedOptionsButton")
+        self.advanced_options_button.setText("Dynamics")
+        self.advanced_options_button.setCheckable(True)
+        self.advanced_options_button.setToolTip("Show advanced brush dynamics")
+        self.advanced_options_button.setAccessibleName("Show advanced brush dynamics")
+        self.advanced_options_button.toggled.connect(self.update_tool_options)
+        self.advanced_options_action = self.options_bar.addWidget(self.advanced_options_button)
+
         self.scatter_spin = QSpinBox(); self.scatter_spin.setRange(0,300); self.scatter_spin.setValue(self.brush_scatter)
         self.scatter_spin.setSuffix("%")
         self.scatter_spin.valueChanged.connect(lambda v: setattr(self, 'brush_scatter', v))
-        self.options_bar.addWidget(self.scatter_spin)
-        self.options_bar.addWidget(QLabel("  Texture: "))
+        self.scatter_spin.setAccessibleName("Brush scatter")
+        add_option("Scatter", self.scatter_spin, dynamics_tools, advanced=True)
         self.texture_spin = QSpinBox(); self.texture_spin.setRange(0,100); self.texture_spin.setValue(self.brush_texture)
         self.texture_spin.setSuffix("%")
         self.texture_spin.valueChanged.connect(lambda v: setattr(self, 'brush_texture', v))
-        self.options_bar.addWidget(self.texture_spin)
-        self.options_bar.addWidget(QLabel("  Jitter: "))
+        self.texture_spin.setAccessibleName("Brush texture")
+        add_option("Texture", self.texture_spin, dynamics_tools, advanced=True)
         self.jitter_spin = QSpinBox(); self.jitter_spin.setRange(0,100); self.jitter_spin.setValue(self.brush_color_jitter)
         self.jitter_spin.setSuffix("%")
         self.jitter_spin.valueChanged.connect(lambda v: setattr(self, 'brush_color_jitter', v))
-        self.options_bar.addWidget(self.jitter_spin)
+        self.jitter_spin.setAccessibleName("Brush color jitter")
+        add_option("Jitter", self.jitter_spin, dynamics_tools, advanced=True)
         self.pressure_size_check = QCheckBox("Pressure Size")
         self.pressure_size_check.toggled.connect(lambda v: setattr(self, 'brush_pressure_size', v))
-        self.options_bar.addWidget(self.pressure_size_check)
+        self.pressure_size_check.setAccessibleName("Pressure controls brush size")
+        pressure_size_action = self.options_bar.addWidget(self.pressure_size_check)
+        self.option_bindings.append((pressure_size_action, frozenset(dynamics_tools), True))
         self.pressure_opacity_check = QCheckBox("Pressure Opacity")
         self.pressure_opacity_check.toggled.connect(lambda v: setattr(self, 'brush_pressure_opacity', v))
-        self.options_bar.addWidget(self.pressure_opacity_check)
-        self.options_bar.addSeparator()
-        self.options_bar.addWidget(QLabel("  Tolerance: "))
+        self.pressure_opacity_check.setAccessibleName("Pressure controls brush opacity")
+        pressure_opacity_action = self.options_bar.addWidget(self.pressure_opacity_check)
+        self.option_bindings.append((pressure_opacity_action, frozenset(dynamics_tools), True))
+
         self.tolerance_spin = QSpinBox(); self.tolerance_spin.setRange(0,255); self.tolerance_spin.setValue(self.magic_wand_tolerance)
         self.tolerance_spin.valueChanged.connect(lambda v: setattr(self, 'magic_wand_tolerance', v))
-        self.options_bar.addWidget(self.tolerance_spin)
+        self.tolerance_spin.setAccessibleName("Magic wand tolerance")
+        add_option("Tolerance", self.tolerance_spin, {"magic_wand"})
         self.contiguous_check = QCheckBox("Contiguous"); self.contiguous_check.setChecked(True)
         self.contiguous_check.toggled.connect(lambda v: setattr(self, 'magic_wand_contiguous', v))
-        self.options_bar.addWidget(self.contiguous_check)
+        self.contiguous_check.setAccessibleName("Select contiguous pixels")
+        contiguous_action = self.options_bar.addWidget(self.contiguous_check)
+        self.option_bindings.append((contiguous_action, frozenset({"magic_wand"}), False))
         self.sample_all_check = QCheckBox("Sample All")
         self.sample_all_check.toggled.connect(lambda v: setattr(self, 'magic_wand_sample_all', v))
-        self.options_bar.addWidget(self.sample_all_check)
+        self.sample_all_check.setAccessibleName("Sample all visible layers")
+        sample_all_action = self.options_bar.addWidget(self.sample_all_check)
+        self.option_bindings.append((sample_all_action, frozenset({"magic_wand"}), False))
+
+        self.tool_hint_label = QLabel()
+        self.tool_hint_label.setObjectName("ToolHintLabel")
+        self.options_bar.addWidget(self.tool_hint_label)
+        self.update_tool_options()
 
     def create_panels(self):
         self.layer_panel = LayerPanel(self)
@@ -1649,7 +1896,40 @@ class ImageEditor(QMainWindow):
             self.window_menu.addAction(dock.toggleViewAction())
 
     def set_tool(self, tool):
-        self.current_tool = tool; self.record_macro_step("set_tool", tool); self.statusBar().showMessage(f"Tool: {tool}")
+        self.current_tool = tool
+        self.update_tool_options()
+        self.record_macro_step("set_tool", tool)
+        self.statusBar().showMessage(f"Tool: {DEFAULT_TOOL_REGISTRY.get(tool).label}")
+
+    def update_tool_options(self):
+        if not hasattr(self, "tool_context_label"):
+            return
+        tool_spec = DEFAULT_TOOL_REGISTRY.get(self.current_tool)
+        self.tool_context_label.setText(tool_spec.label)
+        advanced_visible = self.advanced_options_button.isChecked()
+        for action, tool_ids, advanced in self.option_bindings:
+            action.setVisible(self.current_tool in tool_ids and (advanced_visible or not advanced))
+        self.advanced_options_action.setVisible(
+            self.current_tool in {"brush", "eraser", "clone_stamp"}
+        )
+        hints = {
+            "move": "Reposition the active layer",
+            "select_rect": "Drag a rectangular selection",
+            "select_ellipse": "Drag an elliptical selection",
+            "lasso": "Draw a freeform selection",
+            "object_select": "Outline the object to isolate",
+            "crop": "Drag the crop boundary, then apply it from Image",
+            "eyedropper": "Sample a foreground color from the canvas",
+            "fill": "Fill connected pixels with the foreground color",
+            "gradient": "Drag to blend foreground and background colors",
+            "pen": "Place points to build a reusable path",
+            "text": "Click the canvas to add text",
+            "shape": "Drag to place a vector shape",
+            "hand": "Pan around the document",
+            "zoom": "Click to zoom in",
+            "magic_wand": "Select pixels by color similarity",
+        }
+        self.tool_hint_label.setText(hints.get(self.current_tool, "Edit the active layer with precise local control"))
 
     def record_macro_step(self, command, *args):
         if self.macro_recording and not self.macro_replaying:
@@ -2802,6 +3082,16 @@ def main():
     editor.show()
     if len(sys.argv) > 1:
         QTimer.singleShot(0, lambda: editor.open_path(sys.argv[1]))
+
+    smoke_exit_ms = os.environ.get("PYSHOP_SMOKE_EXIT_MS", "").strip()
+    if smoke_exit_ms.isdigit():
+        def finish_smoke_run():
+            screenshot = os.environ.get("PYSHOP_SMOKE_SCREENSHOT", "").strip()
+            if screenshot:
+                editor.grab().save(screenshot, "PNG")
+            editor.close()
+
+        QTimer.singleShot(max(500, int(smoke_exit_ms)), finish_smoke_run)
     sys.exit(app.exec_())
 
 if __name__ == "__main__":

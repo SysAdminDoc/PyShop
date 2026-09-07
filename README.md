@@ -1,81 +1,110 @@
-# PyShop v0.1.41
+<p align="center">
+  <img src="assets/brand/pyshop-readme-banner.png" alt="PyShop. Layered editing that stays on your desktop." width="100%">
+</p>
 
-![Version](https://img.shields.io/badge/version-v0.1.41-7c3aed)
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Language](https://img.shields.io/badge/language-Python-3776AB)
-![Type](https://img.shields.io/badge/type-Desktop%20App-brightgreen)
+# PyShop
 
-An open-source alternative to Photoshop written in Python. Full-featured image editor with layers, filters, brushes, selections, and a familiar Photoshop-inspired workflow.
+![Version](https://img.shields.io/badge/version-v0.1.42-6d5dfc)
+![License](https://img.shields.io/badge/license-GPL--3.0-22c55e)
+![Platform](https://img.shields.io/badge/platform-Windows-38bdf8)
+![Python](https://img.shields.io/badge/Python-3.10%20to%203.12-3776AB)
 
-## Features
+Edit layered images on Windows without handing your files to a cloud service.
 
-- **Layer System** — Create, reorder, merge, and manage multiple layers with blend modes and opacity
-- **Selection Tools** — Rectangular, elliptical, lasso, and magic wand selections
-- **Brush Engine** — Customizable brushes with size, opacity, and hardness controls
-- **Filters & Effects** — Editable effect layers for blur, sharpen, stylize, and pixel filters plus color adjustments and transforms
-- **File Support** — Save and reopen native `.pyshop` layered projects; import common raster formats, camera RAW files, PSDs, and OpenRaster; export flattened raster images, export presets, batch conversions, layered/flattened PSDs, and OpenRaster
-- **Dark Theme** — Professional dark-themed interface
-- **Undo/Redo** — Full history support
-- **Automation** — Record, save, load, replay, and persist action macros with workspace presets
-- **Responsive Jobs** — Open, save, export, and effect rasterize operations run through cancellable status-bar background jobs
-- **Recovery** — Atomic saves, job error logs, and autosave recovery projects protect in-progress work
-- **Windows Integration** — User-scope `.pyshop` file association, Explorer image context menu, and command-line file opening
-- **Plugin Discovery** — Validates `plugins/<plugin>/plugin.json` manifests and lists discovered plugins in the Plugins menu
+PyShop is a native desktop image editor built for real project work. It combines layers, selections, brushes, editable effects, recovery, and practical file support in one focused workspace. Your images stay on your computer.
 
-## Installation
+[![Download PyShop for Windows](https://img.shields.io/badge/Download-Windows%20ZIP-2563eb?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/SysAdminDoc/PyShop/releases/latest/download/PyShop-v0.1.42-win64.zip)
 
-```bash
-python -m pip install -r requirements.txt
-python pyshop_image_editor.py
+![PyShop editing a layered photograph](assets/screenshots/02-layered-edit.png)
+
+## Why PyShop
+
+| | |
+|---|---|
+| **Layered projects** | Build an edit with reorderable layers, opacity, masks, groups, blend modes, text, and vector shapes. |
+| **Useful selection tools** | Work with marquee, lasso, magic wand, crop, path, and channel-based workflows. |
+| **Editable effects** | Add adjustments and effect layers, then rasterize only when the result is ready. |
+| **Practical imports** | Open common raster images, camera RAW files, PSD documents, and OpenRaster projects. |
+| **Safer sessions** | Atomic saves, autosave recovery projects, undo history, and job error logs help protect work in progress. |
+| **Local by design** | PyShop does not upload images or require an account. |
+
+## A workspace that gets out of the way
+
+The first screen offers two clear choices. Open an image or create a blank canvas. Once a document is active, the options bar follows the selected tool so unrelated controls do not crowd the canvas.
+
+<table>
+  <tr>
+    <td width="50%"><img src="assets/screenshots/01-welcome.png" alt="PyShop welcome screen with Open Image and New Canvas actions"></td>
+    <td width="50%"><img src="assets/screenshots/03-analysis.png" alt="PyShop histogram and image analysis workspace"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Start quickly</strong></td>
+    <td align="center"><strong>Inspect the image</strong></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="assets/screenshots/04-selection.png" alt="PyShop showing an active selection over a layered image"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><strong>Make precise selections without losing the full composition</strong></td>
+  </tr>
+</table>
+
+## Install on Windows
+
+1. Download the [latest Windows ZIP](https://github.com/SysAdminDoc/PyShop/releases/latest/download/PyShop-v0.1.42-win64.zip).
+2. Extract the archive.
+3. Run `PyShop.exe`.
+
+The current Windows build is not code-signed, so SmartScreen may identify it as an unknown publisher. The release includes a SHA-256 checksum for file verification.
+
+## Run from source
+
+Python 3.10 through 3.12 is supported.
+
+```powershell
+git clone https://github.com/SysAdminDoc/PyShop.git
+cd PyShop
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python pyshop_image_editor.py
 ```
 
-For development and smoke tests:
+For tests and release tooling:
 
-```bash
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
+```powershell
+.venv\Scripts\python -m pip install -r requirements-dev.txt
+.venv\Scripts\python -m pytest -q
+.\tools\build-release.ps1
+.\tools\smoke-release.ps1
 ```
 
-## Requirements
+## File workflows
 
-- Python 3.10-3.12
-- PyQt5 5.15.x
-- Pillow 12.2.x
-- numpy 1.24.x-2.x
-- rawpy 0.25+
+- Save complete edits as native `.pyshop` projects.
+- Import PSD and OpenRaster documents with supported layer data.
+- Export flattened images, layered PSD files, or OpenRaster archives.
+- Build reusable export presets and batch-convert multiple inputs.
+- Open camera RAW files supported by `rawpy`.
+- Record actions as reusable `.pyshopmacro` files.
 
-PyQt5 is available under GPL/commercial licensing from Riverbank. Keep that license boundary in mind before redistributing packaged builds.
+Some application-specific metadata has no direct PSD or OpenRaster equivalent. PyShop reports compatibility notes before those exports so you can keep the native project as the master copy.
 
-## Manual QA Checklist
+## Windows integration
 
-- Open an existing PNG or JPG and confirm the canvas renders with zoom and pan working.
-- Import a PNG, JPG, or PSD and confirm Save As defaults to a `.pyshop` project instead of overwriting the source file.
-- Save a layered `.pyshop` project, reopen it, and confirm layers, masks, groups, text/vector metadata, paths, guides, channels, macro steps, and color profiles are preserved.
-- Paint with brush and eraser tools, then undo and redo the edits.
-- Add, duplicate, reorder, hide, lock, and merge layers while confirming the canvas composite updates.
-- Create rectangular, elliptical, lasso, and magic wand selections, then clear and invert selections.
-- Apply one adjustment and one filter to the active layer.
-- Save the document, export with a preset, batch-export two inputs, and reopen the output images.
-- Run `python -m pyshop.windows_shell print` and confirm the generated open command points at the current PyShop launch path.
-- Add a temporary `plugins/sample/plugin.json`, refresh the Plugins menu, and confirm the manifest appears without executing plugin code.
+PyShop can register `.pyshop` files for the current Windows user and add an Explorer action for supported images. Preview the commands first:
 
-## Related Tools
+```powershell
+python -m pyshop.windows_shell print
+```
 
-| Tool | Type | Best For |
-|------|------|----------|
-| **PyShop** (this repo) | Python desktop app | Native desktop image editor with familiar app behavior |
-| [Openshop](https://github.com/SysAdminDoc/Openshop) | Single-file browser app | Zero-install editing in any browser with 33 tools, PSD import, and offline use |
+## Development status
 
-If you want an image editor with no Python install required, see [Openshop](https://github.com/SysAdminDoc/Openshop) — a single HTML file that runs entirely in your browser.
+PyShop is active, early-stage software. Keep an original copy of important source images, especially when exchanging complex PSD files with other editors. Bug reports with a small sample file and exact reproduction steps are welcome.
 
-## Project Planning
+## Related project
 
-- [Changelog](CHANGELOG.md)
-- [Roadmap](ROADMAP.md)
-- [Completed work](COMPLETED.md)
-- [Research report](RESEARCH_REPORT.md)
-- [Archived detailed roadmap](docs/archive/roadmap/PYSHOP_ROADMAP.md)
+Need an editor that runs from a single HTML file? [OpenShop](https://github.com/SysAdminDoc/OpenShop) works offline in a browser and requires no installation.
 
 ## License
 
-MIT License
+PyShop is licensed under the [GNU General Public License v3.0](LICENSE). PyQt5 is available under the GPL or a commercial Riverbank license.

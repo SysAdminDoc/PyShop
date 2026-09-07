@@ -23,7 +23,7 @@ dist/
 !README.md
 !CHANGELOG.md
 
-# AI config
+# Local assistant configuration
 AGENTS.md
 .codex/
 .ai/
