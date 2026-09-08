@@ -1,12 +1,15 @@
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
-    [string] $ScreenshotPath = (Join-Path ([System.IO.Path]::GetTempPath()) 'pyshop-release-smoke.png')
+    [string] $ScreenshotPath = (Join-Path ([System.IO.Path]::GetTempPath()) 'pyshop-release-smoke.png'),
+    [string] $Executable = '',
+    [string] $DemoImage = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$executable = Join-Path $repoRoot 'dist\PyShop.exe'
-$demoImage = Join-Path $repoRoot 'assets\demo\coastal-cabin.png'
+if (-not $Executable) { $Executable = Join-Path $repoRoot 'dist\PyShop.exe' }
+if (-not $DemoImage) { $DemoImage = Join-Path $repoRoot 'assets\demo\coastal-cabin.png' }
 $privateDesktopHarness = 'C:\repos\MattsVoyanceTools\tools\Invoke-PrivateDesktop.ps1'
 $logDirectory = Join-Path ([System.IO.Path]::GetTempPath()) 'pyshop-release-smoke'
 $stdout = Join-Path $logDirectory 'stdout.log'
@@ -23,18 +26,39 @@ if (Test-Path -LiteralPath $ScreenshotPath) {
     Remove-Item -LiteralPath $ScreenshotPath -Force
 }
 
-$env:QT_QPA_PLATFORM = 'windows'
-$env:QT_SCALE_FACTOR = '1'
-$env:PYSHOP_SMOKE_EXIT_MS = '8000'
-$env:PYSHOP_SMOKE_SCREENSHOT = $ScreenshotPath
+$profileRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('PyShop-Smoke-' + [guid]::NewGuid().ToString('N'))
+$environment = @{
+    QT_QPA_PLATFORM = 'windows'
+    QT_SCALE_FACTOR = '1'
+    PYSHOP_SMOKE_EXIT_MS = '8000'
+    PYSHOP_SMOKE_SCREENSHOT = $ScreenshotPath
+    PYSHOP_TEST_PROFILE = $profileRoot
+    PYSHOP_DATA_DIR = (Join-Path $profileRoot 'data')
+    PYSHOP_CAPTURE_DIR = ''
+}
+$previous = @{}
+try {
+    foreach ($key in $environment.Keys) {
+        $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
+        [Environment]::SetEnvironmentVariable($key, $environment[$key], 'Process')
+    }
+    & $privateDesktopHarness -FilePath $Executable -Arguments ('"{0}"' -f $DemoImage) -WorkingDirectory (Split-Path -Parent ([System.IO.Path]::GetFullPath($Executable))) -StdOutPath $stdout -StdErrPath $stderr
+    $smokeExitCode = $LASTEXITCODE
+} finally {
+    foreach ($key in $previous.Keys) { [Environment]::SetEnvironmentVariable($key, $previous[$key], 'Process') }
+    $resolved = [System.IO.Path]::GetFullPath($profileRoot)
+    $allowedRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+    if (-not $resolved.StartsWith($allowedRoot, [StringComparison]::OrdinalIgnoreCase) -or (Split-Path $resolved -Leaf) -notlike 'PyShop-Smoke-*') {
+        throw "Refusing to remove unexpected profile path: $resolved"
+    }
+    if (Test-Path -LiteralPath $resolved) { Remove-Item -LiteralPath $resolved -Recurse -Force }
+}
 
-& $privateDesktopHarness -FilePath $executable -Arguments ('"{0}"' -f $demoImage) -WorkingDirectory $repoRoot -StdOutPath $stdout -StdErrPath $stderr
-
-if ($LASTEXITCODE -ne 0) {
+if ($smokeExitCode -ne 0) {
     if (Test-Path -LiteralPath $stderr) {
         Get-Content -LiteralPath $stderr | Write-Error
     }
-    throw "Packaged smoke test failed with exit code $LASTEXITCODE."
+    throw "Packaged smoke test failed with exit code $smokeExitCode."
 }
 
 if (-not (Test-Path -LiteralPath $ScreenshotPath -PathType Leaf)) {

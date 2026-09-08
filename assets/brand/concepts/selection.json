@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "project": "PyShop",
+  "selectedConcepts": [
+    "direction-02-selected-layered-aperture.png"
+  ],
+  "selectedMasters": [
+    "../pyshop-selected-master.png"
+  ],
+  "selectedSupportingConcepts": [
+    "direction-01-demo-coastal-photo.png"
+  ],
+  "guidance": "These files preserve the original visual exploration. Use selectedConcepts to identify the approved direction. Production assets elsewhere in the repository remain the files used by the product."
+}

@@ -1,5 +1,13 @@
 # Changelog
 
+## PyShop v0.1.43 (2026-09-08)
+
+- Preserved all five original artwork studies and the selected logo master, with an index explaining which assets are in use.
+- Included the README artwork and concept archive in the Windows ZIP.
+- Captured the source and packaged editor through the same sample workflow, recording file hashes for the executable and screenshots.
+- Isolated test preferences and recovery files so verification cannot clear a saved workspace.
+- Corrected the sample image dimensions and selected toolbar state in product captures.
+
 ## PyShop v0.1.42 (2026-09-06)
 
 - Replaced the old camera artwork with a layered-canvas and aperture icon, plus a simplified optical variant for 16 through 64 pixels.

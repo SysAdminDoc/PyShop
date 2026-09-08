@@ -4,18 +4,20 @@
 
 # PyShop
 
-![Version](https://img.shields.io/badge/version-v0.1.42-6d5dfc)
+![Version](https://img.shields.io/badge/version-v0.1.43-6d5dfc)
 ![License](https://img.shields.io/badge/license-GPL--3.0-22c55e)
 ![Platform](https://img.shields.io/badge/platform-Windows-38bdf8)
 ![Python](https://img.shields.io/badge/Python-3.10%20to%203.12-3776AB)
 
 Edit layered images on Windows without handing your files to a cloud service.
 
-PyShop is a native desktop image editor built for real project work. It combines layers, selections, brushes, editable effects, recovery, and practical file support in one focused workspace. Your images stay on your computer.
+PyShop is an early-stage desktop image editor for layered projects. Work with masks and editable effects, inspect color channels, then save a native project you can return to later. No account is required. Your images stay on your computer.
 
-[![Download PyShop for Windows](https://img.shields.io/badge/Download-Windows%20ZIP-2563eb?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/SysAdminDoc/PyShop/releases/latest/download/PyShop-v0.1.42-win64.zip)
+[![Download PyShop for Windows](https://img.shields.io/badge/Download-Windows%20ZIP-2563eb?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/SysAdminDoc/PyShop/releases/latest/download/PyShop-v0.1.43-win64.zip)
 
-![PyShop editing a layered photograph](assets/screenshots/02-layered-edit.png)
+![PyShop editing a layered coastal cabin sample](assets/screenshots/02-layered-edit.png)
+
+The screenshots show the packaged Windows editor with a sample composition. The cabin artwork is demonstration material, not a documentary photograph. [Capture details](assets/screenshots/capture-report.json) tie these images to the release executable.
 
 ## Why PyShop
 
@@ -51,11 +53,13 @@ The first screen offers two clear choices. Open an image or create a blank canva
 
 ## Install on Windows
 
-1. Download the [latest Windows ZIP](https://github.com/SysAdminDoc/PyShop/releases/latest/download/PyShop-v0.1.42-win64.zip).
+1. Download the [latest Windows ZIP](https://github.com/SysAdminDoc/PyShop/releases/latest/download/PyShop-v0.1.43-win64.zip).
 2. Extract the archive.
 3. Run `PyShop.exe`.
 
 The current Windows build is not code-signed, so SmartScreen may identify it as an unknown publisher. The release includes a SHA-256 checksum for file verification.
+
+The ZIP includes this guide, its screenshots, and the original artwork archive. You don't need Python to run the packaged app. The [matching source release](https://github.com/SysAdminDoc/PyShop/tree/v0.1.43) is available separately.
 
 ## Run from source
 
@@ -69,14 +73,17 @@ python -m venv .venv
 .venv\Scripts\python pyshop_image_editor.py
 ```
 
-For tests and release tooling:
+For tests and release tooling, use PowerShell 7:
 
 ```powershell
 .venv\Scripts\python -m pip install -r requirements-dev.txt
 .venv\Scripts\python -m pytest -q
-.\tools\build-release.ps1
+.\tools\build-release.ps1 -BuildOnly
+.\tools\capture-marketing.ps1 -Executable "$PWD\dist\PyShop.exe"
 .\tools\smoke-release.ps1
 ```
+
+The capture and smoke helpers require an isolated Windows desktop harness. They don't use the active display or your saved preferences. Review the four images in `build/marketing-capture`, then copy the PNGs and `capture-report.json` into `assets/screenshots`. Finish with `.\tools\build-release.ps1 -PackageOnly`. Packaging rejects stale captures, altered original concepts, and missing guide images.
 
 ## File workflows
 
@@ -104,6 +111,10 @@ PyShop is active, early-stage software. Keep an original copy of important sourc
 ## Related project
 
 Need an editor that runs from a single HTML file? [OpenShop](https://github.com/SysAdminDoc/OpenShop) works offline in a browser and requires no installation.
+
+## Artwork
+
+The [original concept archive](assets/brand/concepts/README.md) preserves all five studies and records the selected logo. The production identity remains the layered aperture, with a separate optical-size master for smaller icons.
 
 ## License
 

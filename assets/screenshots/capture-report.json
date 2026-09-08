@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.43",
+  "source": {
+    "kind": "Windows executable",
+    "file": "PyShop.exe",
+    "sha256": "743a4d69cae7cb09d5c7f3b588bea386bbd7f3286aaeda7e53a08ad70d3333cf",
+    "sizeBytes": 63552390
+  },
+  "environment": {
+    "surface": "isolated Windows desktop",
+    "temporaryProfile": true,
+    "sampleProject": true
+  },
+  "demoImage": {
+    "file": "coastal-cabin.png",
+    "sha256": "82668cc8b5fb7d0bfcc07da3014053fec9c6ce2c299db4ed7dbfb7e51bdf0097",
+    "sizeBytes": 2428247
+  },
+  "captures": [
+    {
+      "file": "01-welcome.png",
+      "sha256": "5c8b3d9a4ec5280fb3d25493ad2f23febb7cea5999b0a1c426ed661d7a20f424",
+      "sizeBytes": 60249,
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "file": "02-layered-edit.png",
+      "sha256": "a3cba29b407c0e22c4b16c4f4675c66704aefe199bcb677d3f7a4d54adb4d469",
+      "sizeBytes": 1380011,
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "file": "03-analysis.png",
+      "sha256": "bb75c4ffb7f32e99ff0f76ca3447a402b93cfe7d699f747055b0101a0d77fbea",
+      "sizeBytes": 1321937,
+      "width": 1600,
+      "height": 1000
+    },
+    {
+      "file": "04-selection.png",
+      "sha256": "1e11a8a02ef887564fb0e9015d8e0390521cdf4847d8d3b073bfa5b898b384e4",
+      "sizeBytes": 1380645,
+      "width": 1600,
+      "height": 1000
+    }
+  ]
+}

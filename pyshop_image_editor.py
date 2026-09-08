@@ -15,7 +15,7 @@ import numpy as np
 import qtawesome as qta
 from PIL import Image, ImageDraw, ImageEnhance, ImageOps, ImageChops
 from pyshop import APP_DISPLAY_NAME, APP_VERSION, __version__
-from pyshop.app_info import app_icon_path
+from pyshop.app_info import app_icon_path, app_settings
 from pyshop.core import (
     BrushSettings,
     clear_recovery_project,
@@ -85,7 +85,7 @@ from PyQt5.QtWidgets import (
     QLineEdit, QTextEdit, QAbstractItemView, QTabWidget, QProgressBar
 )
 from PyQt5.QtCore import (
-    Qt, QPoint, QRect, QSize, QTimer, pyqtSignal, QPointF, QRectF, QSettings, QThread
+    Qt, QPoint, QRect, QSize, QTimer, pyqtSignal, QPointF, QRectF, QThread
 )
 from PyQt5.QtGui import (
     QImage, QPixmap, QPainter, QPen, QBrush, QColor, QIcon,
@@ -1456,7 +1456,7 @@ class ImageEditor(QMainWindow):
         self.show_grid = False; self.show_guides = True; self.show_rulers = True; self.snap_enabled = True
         self.grid_size = 64
         self.macro_recording = False; self.macro_replaying = False
-        self.settings = QSettings("SysAdminDoc", "PyShop")
+        self.settings = app_settings()
         self.docks = {}
         self.plugin_discovery = None
         self.clone_source = None; self.history = HistoryManager()
@@ -3073,17 +3073,32 @@ class ImageEditor(QMainWindow):
 
 # ---- Main -----------------------------------------------------------------
 def main():
+    capture_dir = os.environ.get("PYSHOP_CAPTURE_DIR", "").strip()
+    smoke_exit_ms = os.environ.get("PYSHOP_SMOKE_EXIT_MS", "").strip()
+    if capture_dir or smoke_exit_ms:
+        if not os.environ.get("PYSHOP_TEST_PROFILE") or not os.environ.get("PYSHOP_DATA_DIR"):
+            raise RuntimeError("Verification requires isolated PYSHOP_TEST_PROFILE and PYSHOP_DATA_DIR paths")
+        if sys.platform == "win32":
+            import ctypes
+            ctypes.windll.user32.SetProcessDPIAware()
     app = QApplication(sys.argv)
     app_icon = QIcon(str(app_icon_path()))
     app.setWindowIcon(app_icon)
     app.setStyle("Fusion")
     app.setStyleSheet(DARK_STYLE)
     editor = ImageEditor()
+    if capture_dir:
+        from pyshop.marketing_capture import capture_session
+        try:
+            capture_session(editor, app, os.environ["PYSHOP_CAPTURE_DEMO"], capture_dir)
+        finally:
+            editor.close()
+            app.processEvents()
+        return
     editor.show()
     if len(sys.argv) > 1:
         QTimer.singleShot(0, lambda: editor.open_path(sys.argv[1]))
 
-    smoke_exit_ms = os.environ.get("PYSHOP_SMOKE_EXIT_MS", "").strip()
     if smoke_exit_ms.isdigit():
         def finish_smoke_run():
             screenshot = os.environ.get("PYSHOP_SMOKE_SCREENSHOT", "").strip()
