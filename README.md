@@ -15,6 +15,16 @@ PyShop is an early-stage desktop image editor for layered projects. Work with ma
 
 [![Download PyShop for Windows](https://img.shields.io/badge/Download-Windows%20ZIP-2563eb?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/SysAdminDoc/PyShop/releases/latest/download/PyShop-v0.1.43-win64.zip)
 
+<p align="center">
+  <a href="https://ko-fi.com/X8K126YVER">
+    <img height="42" src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy me a coffee on Ko-fi" />
+  </a>
+</p>
+
+<p align="center">
+  <sub><em>If this project helps you, a coffee helps me keep working on it.</em></sub>
+</p>
+
 ![PyShop editing a layered coastal cabin sample](assets/screenshots/02-layered-edit.png)
 
 The screenshots show the packaged Windows editor with a sample composition. The cabin artwork is demonstration material, not a documentary photograph. [Capture details](assets/screenshots/capture-report.json) tie these images to the release executable.
